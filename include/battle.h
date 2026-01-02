@@ -97,7 +97,7 @@ struct BattleState {
     BattleResult result = BattleResult::InProgress;
     int winnerIndex = -1;
     float gameOverTimer = 0.0f;
-    static constexpr float GAME_OVER_DELAY = 3.0f;
+    static constexpr float GAME_OVER_DELAY = 8.0f;  // Longer to show detailed results
 
     // Pause state
     bool paused = false;

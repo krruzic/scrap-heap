@@ -346,12 +346,13 @@ void BattleManager::applyWallDamage(BattleState& state, float dt) {
             if (bot.health <= 0) {
                 bot.health = 0;
                 bot.isAlive = false;
-                state.botStats[bot.playerIndex].deaths++;
 
                 CombatEvent event;
                 event.type = CombatEvent::Type::Death;
                 event.x = bot.x;
                 event.y = bot.y;
+                event.targetBot = bot.playerIndex;
+                event.sourceBot = -1;  // Wall kill (no player gets credit)
                 event.timer = 1.0f;
                 state.combatEvents.push_back(event);
             }
@@ -379,6 +380,15 @@ void BattleManager::updateMines(BattleState& state, float dt) {
                     // Explode!
                     mine.exploded = true;
 
+                    // Find mine owner for kill attribution
+                    Bot* owner = nullptr;
+                    for (auto& b : state.bots) {
+                        if (b.playerIndex == mine.ownerIndex) {
+                            owner = &b;
+                            break;
+                        }
+                    }
+
                     // Damage all bots in explosion radius
                     for (auto& target : state.bots) {
                         if (!target.isAlive) continue;
@@ -386,10 +396,7 @@ void BattleManager::updateMines(BattleState& state, float dt) {
                         if (targetDist < Mine::EXPLOSION_RADIUS) {
                             Vec2 knockDir(target.x - mine.x, target.y - mine.y);
                             Combat::applyDamage(target, Mine::DAMAGE, 150.0f, knockDir,
-                                               nullptr, state.combatEvents);
-
-                            // Track damage stats
-                            state.botStats[target.playerIndex].damageTaken += Mine::DAMAGE;
+                                               owner, state.combatEvents);
                         }
                     }
                     break;
@@ -420,6 +427,31 @@ void BattleManager::updateSmokeClouds(BattleState& state, float dt) {
 
 void BattleManager::updateCombatEvents(BattleState& state, float dt) {
     for (auto it = state.combatEvents.begin(); it != state.combatEvents.end(); ) {
+        // Process events for stats tracking (only once when newly created)
+        bool isNewEvent = it->timer > 0.4f;  // Just spawned
+
+        if (it->type == CombatEvent::Type::Damage && isNewEvent) {
+            // Track damage dealt and taken
+            if (it->sourceBot >= 0 && state.botStats.count(it->sourceBot)) {
+                state.botStats[it->sourceBot].damageDealt += it->value;
+            }
+            if (it->targetBot >= 0 && state.botStats.count(it->targetBot)) {
+                state.botStats[it->targetBot].damageTaken += it->value;
+            }
+        }
+
+        if (it->type == CombatEvent::Type::Death && it->timer > 0.9f) {
+            // Only process once (when timer is near max)
+            // Track death for the victim
+            if (it->targetBot >= 0 && state.botStats.count(it->targetBot)) {
+                state.botStats[it->targetBot].deaths++;
+            }
+            // Track kill for the killer
+            if (it->sourceBot >= 0 && state.botStats.count(it->sourceBot)) {
+                state.botStats[it->sourceBot].kills++;
+            }
+        }
+
         it->timer -= dt;
         if (it->timer <= 0) {
             it = state.combatEvents.erase(it);
@@ -708,25 +740,141 @@ void BattleManager::renderGameOver(const BattleState& state) {
     auto& renderer = Renderer::instance();
 
     // Darken screen
-    SDL_Color overlay = {0, 0, 0, 180};
+    SDL_Color overlay = {0, 0, 0, 200};
     renderer.drawRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, overlay, true);
 
-    // Winner text
-    std::string resultText = state.getWinnerName();
-    if (state.result == BattleResult::Winner) {
-        resultText += " WINS!";
+    // Title - "GAME!" or "DRAW"
+    std::string titleText = (state.result == BattleResult::Draw) ? "DRAW!" : "GAME!";
+    SDL_Color titleColor = {255, 200, 50, 255};
+    renderer.drawTextShadow(titleText, WINDOW_WIDTH / 2.0f, 60,
+                           renderer.getFontLarge(), titleColor, TextAlign::Center);
+
+    // Calculate panel layout
+    int numPlayers = static_cast<int>(state.bots.size());
+    float panelWidth = 180.0f;
+    float panelHeight = 320.0f;
+    float panelSpacing = 30.0f;
+    float totalWidth = numPlayers * panelWidth + (numPlayers - 1) * panelSpacing;
+    float startX = (WINDOW_WIDTH - totalWidth) / 2.0f;
+    float panelY = 120.0f;
+
+    // Sort players by kills (for placement display)
+    std::vector<int> placements(numPlayers);
+    for (int i = 0; i < numPlayers; ++i) placements[i] = i;
+    std::sort(placements.begin(), placements.end(), [&state](int a, int b) {
+        const auto& statsA = state.botStats.at(state.bots[a].playerIndex);
+        const auto& statsB = state.botStats.at(state.bots[b].playerIndex);
+        if (statsA.kills != statsB.kills) return statsA.kills > statsB.kills;
+        return statsA.damageDealt > statsB.damageDealt;
+    });
+
+    // Get placement rank for each player
+    std::vector<int> ranks(numPlayers);
+    for (int i = 0; i < numPlayers; ++i) {
+        ranks[placements[i]] = i + 1;
     }
 
-    SDL_Color textColor = {255, 200, 50, 255};
-    renderer.drawTextShadow(resultText, WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f - 30,
-                           renderer.getFontLarge(), textColor, TextAlign::Center);
+    // Draw player panels
+    for (int i = 0; i < numPlayers; ++i) {
+        const auto& bot = state.bots[i];
+        const auto& stats = state.botStats.at(bot.playerIndex);
+        bool isWinner = (state.result == BattleResult::Winner && i == state.winnerIndex);
 
-    // Countdown
+        float panelX = startX + i * (panelWidth + panelSpacing);
+        SDL_Color playerColor = Renderer::getPlayerColor(bot.colorIndex);
+
+        // Panel background
+        SDL_Color panelBg = isWinner ? SDL_Color{60, 50, 20, 240} : SDL_Color{30, 30, 40, 240};
+        renderer.drawRect(panelX, panelY, panelWidth, panelHeight, panelBg, true);
+
+        // Panel border (thicker for winner)
+        SDL_Color borderColor = isWinner ? SDL_Color{255, 200, 50, 255} : SDL_Color{80, 80, 100, 255};
+        float borderWidth = isWinner ? 4.0f : 2.0f;
+        renderer.drawRectOutline(panelX, panelY, panelWidth, panelHeight, borderColor, borderWidth);
+
+        // Winner crown / placement indicator
+        float contentY = panelY + 15;
+        if (isWinner) {
+            SDL_Color crownColor = {255, 215, 0, 255};
+            renderer.drawTextShadow("WINNER", panelX + panelWidth / 2, contentY,
+                                   renderer.getFontSmall(), crownColor, TextAlign::Center);
+        } else {
+            std::string placeStr = "#" + std::to_string(ranks[i]);
+            SDL_Color placeColor = {150, 150, 150, 255};
+            renderer.drawText(placeStr, panelX + panelWidth / 2, contentY,
+                             renderer.getFontSmall(), placeColor, TextAlign::Center);
+        }
+        contentY += 30;
+
+        // Player name
+        renderer.drawTextShadow(bot.displayName, panelX + panelWidth / 2, contentY,
+                               renderer.getFontMedium(), playerColor, TextAlign::Center);
+        contentY += 35;
+
+        // Bot visual representation (simple colored circle)
+        float botPreviewX = panelX + panelWidth / 2;
+        float botPreviewY = contentY + 25;
+        SDL_Color previewColor = bot.isAlive ? playerColor : SDL_Color{100, 100, 100, 255};
+        renderer.drawRect(botPreviewX - 25, botPreviewY - 25, 50, 50, previewColor, true);
+        if (!bot.isAlive) {
+            SDL_Color xColor = {200, 50, 50, 255};
+            renderer.drawText("X", botPreviewX, botPreviewY - 8,
+                             renderer.getFontMedium(), xColor, TextAlign::Center);
+        }
+        contentY += 70;
+
+        // Stats section
+        SDL_Color labelColor = {150, 150, 160, 255};
+        SDL_Color valueColor = {255, 255, 255, 255};
+        float labelX = panelX + 15;
+        float valueX = panelX + panelWidth - 15;
+        float statSpacing = 35;
+
+        // KOs (Kills)
+        renderer.drawText("KOs", labelX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
+        SDL_Color koColor = stats.kills > 0 ? SDL_Color{100, 255, 100, 255} : valueColor;
+        renderer.drawText(std::to_string(stats.kills), valueX, contentY,
+                         renderer.getFontSmall(), koColor, TextAlign::Right);
+        contentY += statSpacing;
+
+        // Falls (Deaths)
+        renderer.drawText("Falls", labelX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
+        SDL_Color deathColor = stats.deaths > 0 ? SDL_Color{255, 100, 100, 255} : valueColor;
+        renderer.drawText(std::to_string(stats.deaths), valueX, contentY,
+                         renderer.getFontSmall(), deathColor, TextAlign::Right);
+        contentY += statSpacing;
+
+        // Damage dealt
+        renderer.drawText("Damage", labelX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
+        char dmgStr[32];
+        snprintf(dmgStr, sizeof(dmgStr), "%.0f%%", stats.damageDealt);
+        renderer.drawText(dmgStr, valueX, contentY, renderer.getFontSmall(), valueColor, TextAlign::Right);
+        contentY += statSpacing;
+
+        // Damage taken
+        renderer.drawText("Taken", labelX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
+        char takenStr[32];
+        snprintf(takenStr, sizeof(takenStr), "%.0f%%", stats.damageTaken);
+        SDL_Color takenColor = {255, 180, 100, 255};
+        renderer.drawText(takenStr, valueX, contentY, renderer.getFontSmall(), takenColor, TextAlign::Right);
+    }
+
+    // Match time display
+    int totalSeconds = static_cast<int>(state.matchTimer);
+    int minutes = totalSeconds / 60;
+    int seconds = totalSeconds % 60;
+    char timeStr[32];
+    snprintf(timeStr, sizeof(timeStr), "Time: %d:%02d", minutes, seconds);
+    SDL_Color timeColor = {180, 180, 180, 255};
+    renderer.drawText(timeStr, WINDOW_WIDTH / 2.0f, panelY + panelHeight + 30,
+                     renderer.getFontSmall(), timeColor, TextAlign::Center);
+
+    // Countdown to return
     int countdown = static_cast<int>(BattleState::GAME_OVER_DELAY - state.gameOverTimer) + 1;
-    if (countdown > 0) {
-        SDL_Color countColor = {180, 180, 180, 255};
+    if (countdown > 0 && countdown <= 5) {
+        SDL_Color countColor = {120, 120, 130, 255};
         renderer.drawText("Returning to menu in " + std::to_string(countdown) + "...",
-                         WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT / 2.0f + 50,
+                         WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 40,
                          renderer.getFontSmall(), countColor, TextAlign::Center);
     }
 }

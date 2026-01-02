@@ -64,6 +64,8 @@ void Combat::applyDamage(Bot& target, float damage, float knockbackForce,
     event.x = target.x;
     event.y = target.y;
     event.value = actualDamage;
+    event.targetBot = target.playerIndex;
+    event.sourceBot = source ? source->playerIndex : -1;
     event.timer = 0.5f;
     events.push_back(event);
 
@@ -76,6 +78,8 @@ void Combat::applyDamage(Bot& target, float damage, float knockbackForce,
         deathEvent.type = CombatEvent::Type::Death;
         deathEvent.x = target.x;
         deathEvent.y = target.y;
+        deathEvent.targetBot = target.playerIndex;
+        deathEvent.sourceBot = source ? source->playerIndex : -1;  // Track killer
         deathEvent.timer = 1.0f;
         events.push_back(deathEvent);
     }
