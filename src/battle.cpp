@@ -1,5 +1,6 @@
 #include "battle.h"
 #include "game_context.h"
+#include "game_setup.h"
 #include "renderer.h"
 #include "physics.h"
 #include "combat.h"
@@ -7,6 +8,7 @@
 #include "data.h"
 #include "components.h"
 #include <algorithm>
+#include <cmath>
 
 namespace ScrapHeap {
 
@@ -24,6 +26,12 @@ std::string BattleState::getWinnerName() const {
         return bots[winnerIndex].displayName;
     }
     return "UNKNOWN";
+}
+
+bool BattleState::isOutsideSafeZone(float x, float y) const {
+    if (!wall.active) return false;
+    return x < wall.left || x > wall.right ||
+           y < wall.top || y > wall.bottom;
 }
 
 BattleState BattleManager::createBattle(const PlayerSlot* slots, int stageIndex) {
@@ -66,14 +74,39 @@ BattleState BattleManager::createBattle(const PlayerSlot* slots, int stageIndex)
 
         state.bots.push_back(bot);
 
+        // Initialize bot battle stats
+        state.botStats[bot.playerIndex] = BotBattleStats();
+
         // Record component usage
         const auto& frame = ComponentRegistry::instance().getFrame(slot.frameIndex);
+        const auto& engine = ComponentRegistry::instance().getEngine(slot.engineIndex);
         const auto& weapon = ComponentRegistry::instance().getWeapon(slot.weaponIndex);
-        DataManager::instance().recordComponentUsage(frame.name, weapon.name);
+        const auto& special = ComponentRegistry::instance().getSpecial(slot.specialIndex);
+
+        DataManager::instance().recordComponentUsage(
+            bot.displayName, frame.name, engine.name, weapon.name, special.name);
     }
 
     // Create powerups
     state.powerups = PowerupManager::instance().createPowerupsForStage(stageIndex);
+
+    // Initialize shrinking wall (starts at stage boundaries)
+    state.wall.left = 0.0f;
+    state.wall.right = state.stage.width;
+    state.wall.top = 0.0f;
+    state.wall.bottom = state.stage.height;
+    state.wall.active = false;
+    state.wall.currentPhase = 0;
+    state.wall.phaseTimer = 0.0f;
+
+    // Set target for first shrink (toward center)
+    float centerX = state.stage.width / 2.0f;
+    float centerY = state.stage.height / 2.0f;
+    float shrinkAmount = state.stage.width * 0.15f;  // 15% shrink per phase
+    state.wall.targetLeft = shrinkAmount;
+    state.wall.targetRight = state.stage.width - shrinkAmount;
+    state.wall.targetTop = shrinkAmount;
+    state.wall.targetBottom = state.stage.height - shrinkAmount;
 
     // Calculate camera offset to center stage
     state.cameraOffsetX = (WINDOW_WIDTH - state.stage.width) / 2.0f;
@@ -92,7 +125,7 @@ void BattleManager::update(BattleState& state, GameContext& ctx, float dt) {
     if (state.isGameOver()) {
         state.gameOverTimer += dt;
         if (state.gameOverTimer >= BattleState::GAME_OVER_DELAY) {
-            recordResults(state);
+            recordResults(state, ctx);
             ctx.changeState(GameState::MainMenu);
         }
         return;
@@ -179,6 +212,10 @@ void BattleManager::update(BattleState& state, GameContext& ctx, float dt) {
     updateMines(state, dt);
     updateSmokeClouds(state, dt);
 
+    // Update shrinking wall
+    updateShrinkingWall(state, dt);
+    applyWallDamage(state, dt);
+
     // Update combat events
     updateCombatEvents(state, dt);
 
@@ -206,6 +243,117 @@ void BattleManager::updateBots(BattleState& state, float dt) {
             auto collision = Physics::checkBotCollision(state.bots[i], state.bots[j]);
             if (collision.collided) {
                 Physics::resolveBotCollision(state.bots[i], state.bots[j], collision);
+            }
+        }
+    }
+}
+
+void BattleManager::updateShrinkingWall(BattleState& state, float dt) {
+    // Don't start wall until after initial delay
+    if (state.matchTimer < ShrinkingWall::INITIAL_DELAY) {
+        return;
+    }
+
+    // Activate wall on first update after delay
+    if (!state.wall.active) {
+        state.wall.active = true;
+        state.wall.phaseTimer = 0.0f;
+    }
+
+    state.wall.phaseTimer += dt;
+
+    // Shrink toward target
+    float speed = state.wall.getShrinkSpeed() * dt;
+
+    // Move boundaries toward targets
+    if (state.wall.left < state.wall.targetLeft) {
+        state.wall.left = std::min(state.wall.left + speed, state.wall.targetLeft);
+    }
+    if (state.wall.right > state.wall.targetRight) {
+        state.wall.right = std::max(state.wall.right - speed, state.wall.targetRight);
+    }
+    if (state.wall.top < state.wall.targetTop) {
+        state.wall.top = std::min(state.wall.top + speed, state.wall.targetTop);
+    }
+    if (state.wall.bottom > state.wall.targetBottom) {
+        state.wall.bottom = std::max(state.wall.bottom - speed, state.wall.targetBottom);
+    }
+
+    // Check if we've reached target and should start next phase
+    bool reachedTarget =
+        std::abs(state.wall.left - state.wall.targetLeft) < 1.0f &&
+        std::abs(state.wall.right - state.wall.targetRight) < 1.0f &&
+        std::abs(state.wall.top - state.wall.targetTop) < 1.0f &&
+        std::abs(state.wall.bottom - state.wall.targetBottom) < 1.0f;
+
+    if (reachedTarget && state.wall.phaseTimer >= ShrinkingWall::PHASE_DURATION &&
+        state.wall.currentPhase < ShrinkingWall::MAX_PHASES) {
+
+        state.wall.currentPhase++;
+        state.wall.phaseTimer = 0.0f;
+
+        // Calculate new targets
+        float centerX = state.stage.width / 2.0f;
+        float centerY = state.stage.height / 2.0f;
+
+        // Each phase shrinks more aggressively
+        float shrinkAmount = state.stage.width * (0.1f + state.wall.currentPhase * 0.05f);
+
+        float newLeft = state.wall.left + shrinkAmount;
+        float newRight = state.wall.right - shrinkAmount;
+        float newTop = state.wall.top + shrinkAmount;
+        float newBottom = state.wall.bottom - shrinkAmount;
+
+        // Clamp to minimum safe zone
+        float minWidth = ShrinkingWall::FINAL_RADIUS * 2;
+        float currentWidth = newRight - newLeft;
+        float currentHeight = newBottom - newTop;
+
+        if (currentWidth < minWidth) {
+            float adjustment = (minWidth - currentWidth) / 2.0f;
+            newLeft -= adjustment;
+            newRight += adjustment;
+        }
+        if (currentHeight < minWidth) {
+            float adjustment = (minWidth - currentHeight) / 2.0f;
+            newTop -= adjustment;
+            newBottom += adjustment;
+        }
+
+        state.wall.targetLeft = newLeft;
+        state.wall.targetRight = newRight;
+        state.wall.targetTop = newTop;
+        state.wall.targetBottom = newBottom;
+
+        // Increase damage per second each phase
+        state.wall.damagePerSecond = 5.0f + state.wall.currentPhase * 3.0f;
+    }
+}
+
+void BattleManager::applyWallDamage(BattleState& state, float dt) {
+    if (!state.wall.active) return;
+
+    for (auto& bot : state.bots) {
+        if (!bot.isAlive) continue;
+
+        if (state.isOutsideSafeZone(bot.x, bot.y)) {
+            float damage = state.wall.damagePerSecond * dt;
+            bot.health -= damage;
+
+            // Track damage taken
+            state.botStats[bot.playerIndex].damageTaken += damage;
+
+            if (bot.health <= 0) {
+                bot.health = 0;
+                bot.isAlive = false;
+                state.botStats[bot.playerIndex].deaths++;
+
+                CombatEvent event;
+                event.type = CombatEvent::Type::Death;
+                event.x = bot.x;
+                event.y = bot.y;
+                event.timer = 1.0f;
+                state.combatEvents.push_back(event);
             }
         }
     }
@@ -239,6 +387,9 @@ void BattleManager::updateMines(BattleState& state, float dt) {
                             Vec2 knockDir(target.x - mine.x, target.y - mine.y);
                             Combat::applyDamage(target, Mine::DAMAGE, 150.0f, knockDir,
                                                nullptr, state.combatEvents);
+
+                            // Track damage stats
+                            state.botStats[target.playerIndex].damageTaken += Mine::DAMAGE;
                         }
                     }
                     break;
@@ -343,20 +494,30 @@ void BattleManager::checkGameOver(BattleState& state) {
     }
 }
 
-void BattleManager::recordResults(const BattleState& state) {
+void BattleManager::recordResults(const BattleState& state, GameContext& ctx) {
     auto& data = DataManager::instance();
     data.incrementMatchCount();
+    data.addPlayTime(state.matchTimer);
 
-    if (state.result == BattleResult::Winner && state.winnerIndex >= 0) {
-        for (size_t i = 0; i < state.bots.size(); ++i) {
-            if (static_cast<int>(i) == state.winnerIndex) {
-                data.recordWin(state.bots[i].displayName);
-            } else {
-                data.recordLoss(state.bots[i].displayName);
-            }
-        }
+    bool isDraw = (state.result == BattleResult::Draw);
+
+    for (size_t i = 0; i < state.bots.size(); ++i) {
+        const auto& bot = state.bots[i];
+        const auto& stats = state.botStats.at(bot.playerIndex);
+
+        bool won = !isDraw && static_cast<int>(i) == state.winnerIndex;
+
+        data.recordMatchResult(
+            bot.displayName,
+            won,
+            isDraw,
+            stats.kills,
+            stats.deaths,
+            stats.damageDealt,
+            stats.damageTaken,
+            state.matchTimer
+        );
     }
-    // For draws, we don't record wins/losses
 }
 
 void BattleManager::render(const BattleState& state) {
@@ -364,6 +525,9 @@ void BattleManager::render(const BattleState& state) {
 
     // Draw stage
     renderer.drawStage(state.stage, state.cameraOffsetX, state.cameraOffsetY);
+
+    // Draw shrinking wall (before bots so they appear on top)
+    renderShrinkingWall(state);
 
     // Draw powerups
     for (const auto& powerup : state.powerups) {
@@ -414,6 +578,59 @@ void BattleManager::render(const BattleState& state) {
     }
 }
 
+void BattleManager::renderShrinkingWall(const BattleState& state) {
+    if (!state.wall.active) return;
+
+    auto& renderer = Renderer::instance();
+
+    // Translucent purple color for the danger zone
+    SDL_Color wallColor = {128, 0, 180, 100};  // Purple with transparency
+
+    float ox = state.cameraOffsetX;
+    float oy = state.cameraOffsetY;
+
+    // Draw four rectangles for the wall areas (outside safe zone)
+    // Left wall
+    if (state.wall.left > 0) {
+        renderer.drawRect(ox, oy, state.wall.left, state.stage.height, wallColor, true);
+    }
+
+    // Right wall
+    if (state.wall.right < state.stage.width) {
+        renderer.drawRect(ox + state.wall.right, oy,
+                         state.stage.width - state.wall.right, state.stage.height, wallColor, true);
+    }
+
+    // Top wall (between left and right walls)
+    if (state.wall.top > 0) {
+        renderer.drawRect(ox + state.wall.left, oy,
+                         state.wall.right - state.wall.left, state.wall.top, wallColor, true);
+    }
+
+    // Bottom wall (between left and right walls)
+    if (state.wall.bottom < state.stage.height) {
+        renderer.drawRect(ox + state.wall.left, oy + state.wall.bottom,
+                         state.wall.right - state.wall.left,
+                         state.stage.height - state.wall.bottom, wallColor, true);
+    }
+
+    // Draw safe zone border
+    SDL_Color borderColor = {200, 100, 255, 200};
+    renderer.drawRectOutline(ox + state.wall.left, oy + state.wall.top,
+                            state.wall.right - state.wall.left,
+                            state.wall.bottom - state.wall.top,
+                            borderColor, 2.0f);
+
+    // Draw target zone border (where wall is heading)
+    if (state.wall.currentPhase < ShrinkingWall::MAX_PHASES) {
+        SDL_Color targetColor = {255, 150, 255, 80};
+        renderer.drawRectOutline(ox + state.wall.targetLeft, oy + state.wall.targetTop,
+                                state.wall.targetRight - state.wall.targetLeft,
+                                state.wall.targetBottom - state.wall.targetTop,
+                                targetColor, 1.0f);
+    }
+}
+
 void BattleManager::renderHUD(const BattleState& state) {
     auto& renderer = Renderer::instance();
 
@@ -432,6 +649,11 @@ void BattleManager::renderHUD(const BattleState& state) {
 
         SDL_Color playerColor = Renderer::getPlayerColor(bot.colorIndex);
         SDL_Color bgColor = {40, 40, 50, 255};
+
+        // Grey out dead players
+        if (!bot.isAlive) {
+            playerColor = {100, 100, 100, 255};
+        }
 
         // Player name
         renderer.drawText(bot.displayName, x + barWidth / 2, hudY,
@@ -462,6 +684,24 @@ void BattleManager::renderHUD(const BattleState& state) {
         SDL_Color{255, 100, 100, 255} : SDL_Color{200, 200, 200, 255};
     renderer.drawTextShadow(timerStr, WINDOW_WIDTH / 2.0f, hudY + 55,
                            renderer.getFontMedium(), timerColor, TextAlign::Center);
+
+    // Wall warning
+    if (state.wall.active) {
+        float timeUntilShrink = ShrinkingWall::PHASE_DURATION - state.wall.phaseTimer;
+        if (timeUntilShrink > 0 && timeUntilShrink <= 5.0f) {
+            SDL_Color warningColor = {255, 100, 255, 255};
+            renderer.drawText("WALL CLOSING!", WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 80,
+                             renderer.getFontSmall(), warningColor, TextAlign::Center);
+        }
+    } else if (state.matchTimer >= ShrinkingWall::INITIAL_DELAY - 5.0f &&
+               state.matchTimer < ShrinkingWall::INITIAL_DELAY) {
+        // Warning before wall appears
+        SDL_Color warningColor = {255, 150, 255, 255};
+        int countdown = static_cast<int>(ShrinkingWall::INITIAL_DELAY - state.matchTimer) + 1;
+        std::string warning = "WALL APPEARS IN " + std::to_string(countdown);
+        renderer.drawText(warning, WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 80,
+                         renderer.getFontSmall(), warningColor, TextAlign::Center);
+    }
 }
 
 void BattleManager::renderGameOver(const BattleState& state) {

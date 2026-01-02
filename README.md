@@ -8,7 +8,8 @@ A top-down arena combat game where players build custom fighting robots and batt
 - **Deep Customization** - Mix and match frames, engines, weapons, and special abilities
 - **Multiple Stages** - Each arena has unique hazards and layouts
 - **Powerups** - Collect health, speed boosts, damage buffs, and more
-- **Persistent Stats** - Track wins and losses for each player tag
+- **Persistent Stats** - Track wins, losses, kills, damage, and more per player tag
+- **Shrinking Wall** - Battle royale-style danger zone that closes in after 30 seconds
 
 ## Controls
 
@@ -104,6 +105,27 @@ Note: A TrueType font file is required. The game will look for `assets/font.ttf`
 2. **Hazard Zone** - Corner flames on timers
 3. **Steel Cage** - Electrified walls
 4. **Lava Arena** - Center pit (instant death)
+
+## Shrinking Wall
+
+After 30 seconds of combat, a translucent purple danger zone begins closing in from the edges of the arena:
+- Deals damage over time to bots outside the safe zone
+- Shrinks in phases, getting faster each phase
+- Damage increases each phase (5 DPS base, +3 per phase)
+- Forces combat toward the center
+- Warning appears 5 seconds before each shrink phase
+
+## Save Data
+
+Player stats are stored in `scrapheap.sav` (binary format) including:
+- Win/Loss/Draw records
+- Kill/Death counts
+- Total damage dealt and taken
+- Match time played
+- Win streaks
+- Favorite components (most used frame, engine, weapon, special)
+
+The game automatically migrates data from legacy text files (tags.txt, stats.txt) to the new format.
 
 ## License
 

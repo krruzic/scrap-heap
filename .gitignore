@@ -18,6 +18,7 @@ out/
 *.app
 
 # Game data files (user-generated)
+*.sav
 tags.txt
 stats.txt
 global_stats.txt

@@ -6,6 +6,7 @@
 #include "combat.h"
 #include <vector>
 #include <string>
+#include <map>
 
 namespace ScrapHeap {
 
@@ -20,10 +21,56 @@ enum class BattleResult {
     Draw        // Multiple survivors or timeout
 };
 
+// Shrinking wall (storm) state
+struct ShrinkingWall {
+    // Wall boundaries (safe zone is inside these)
+    float left = 0.0f;
+    float right = 0.0f;
+    float top = 0.0f;
+    float bottom = 0.0f;
+
+    // Target boundaries (what we're shrinking towards)
+    float targetLeft = 0.0f;
+    float targetRight = 0.0f;
+    float targetTop = 0.0f;
+    float targetBottom = 0.0f;
+
+    // Shrink phases
+    int currentPhase = 0;
+    float phaseTimer = 0.0f;
+
+    // Wall properties
+    bool active = false;
+    float damagePerSecond = 5.0f;
+
+    // Timing constants
+    static constexpr float INITIAL_DELAY = 30.0f;       // Wait 30s before wall appears
+    static constexpr float PHASE_DURATION = 20.0f;      // Each phase lasts 20s
+    static constexpr float FINAL_RADIUS = 60.0f;        // Minimum safe zone radius
+    static constexpr int MAX_PHASES = 5;
+
+    // Get current shrink speed (faster in later phases)
+    float getShrinkSpeed() const {
+        // Starts slow, gets faster each phase
+        return 0.5f + currentPhase * 0.4f;
+    }
+};
+
+// Per-bot tracking for stats
+struct BotBattleStats {
+    int kills = 0;
+    int deaths = 0;
+    float damageDealt = 0.0f;
+    float damageTaken = 0.0f;
+};
+
 // Battle state
 struct BattleState {
     // Bots in the arena
     std::vector<Bot> bots;
+
+    // Per-bot stats tracking
+    std::map<int, BotBattleStats> botStats;
 
     // Stage
     int stageIndex = 0;
@@ -35,6 +82,9 @@ struct BattleState {
     // Special ability objects
     std::vector<Mine> mines;
     std::vector<SmokeCloud> smokeClouds;
+
+    // Shrinking wall
+    ShrinkingWall wall;
 
     // Combat events for visual feedback
     std::vector<CombatEvent> combatEvents;
@@ -64,6 +114,9 @@ struct BattleState {
 
     // Get winner name
     std::string getWinnerName() const;
+
+    // Check if a position is outside the safe zone
+    bool isOutsideSafeZone(float x, float y) const;
 };
 
 // Battle manager
@@ -85,7 +138,7 @@ public:
     static void checkGameOver(BattleState& state);
 
     // Record match results to stats
-    static void recordResults(const BattleState& state);
+    static void recordResults(const BattleState& state, GameContext& ctx);
 
 private:
     // Update all bots
@@ -100,8 +153,17 @@ private:
     // Update smoke clouds
     static void updateSmokeClouds(BattleState& state, float dt);
 
+    // Update shrinking wall
+    static void updateShrinkingWall(BattleState& state, float dt);
+
+    // Apply wall damage to bots outside safe zone
+    static void applyWallDamage(BattleState& state, float dt);
+
     // Render HUD
     static void renderHUD(const BattleState& state);
+
+    // Render shrinking wall
+    static void renderShrinkingWall(const BattleState& state);
 
     // Render game over overlay
     static void renderGameOver(const BattleState& state);

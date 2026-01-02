@@ -238,7 +238,7 @@ void MainMenuScreen::render() {
 // StatsScreen
 void StatsScreen::enter() {
     scrollOffset = 0;
-    DataManager::instance().loadStats();
+    // Data is already loaded at startup, no need to reload
 }
 
 void StatsScreen::handleInput(GameContext& ctx) {
@@ -307,7 +307,7 @@ void StatsScreen::render() {
             renderer.drawText(std::to_string(ps.losses), 620, y, renderer.getFontSmall(), rowColor, TextAlign::Center);
 
             char ratioStr[16];
-            snprintf(ratioStr, sizeof(ratioStr), "%.1f%%", ps.getRatio() * 100.0f);
+            snprintf(ratioStr, sizeof(ratioStr), "%.1f%%", ps.getWinRatio() * 100.0f);
             renderer.drawText(ratioStr, 740, y, renderer.getFontSmall(), rowColor, TextAlign::Center);
         }
     }
@@ -328,7 +328,7 @@ TagsScreen::TagsScreen() : keyboard() {
 void TagsScreen::enter() {
     selection = 0;
     enteringNewTag = false;
-    DataManager::instance().loadTags();
+    // Data is already loaded at startup, no need to reload
 }
 
 void TagsScreen::handleInput(GameContext& ctx) {

@@ -79,7 +79,7 @@ bool initializeContext(GameContext& ctx) {
     InputManager::instance().initialize();
 
     // Load data
-    DataManager::instance().loadAll();
+    DataManager::instance().load();
 
     // Initialize components
     ComponentRegistry::instance().initialize();
@@ -96,7 +96,7 @@ bool initializeContext(GameContext& ctx) {
 
 void shutdownContext(GameContext& ctx) {
     // Save data
-    DataManager::instance().saveAll();
+    DataManager::instance().save();
 
     // Shutdown systems
     InputManager::instance().shutdown();
