@@ -327,7 +327,7 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
     renderer.drawRectOutline(x + 5, y + 5, width - 10, height - 10, borderColor, 2);
 
     float centerX = x + width / 2.0f;
-    float contentY = y + 30;
+    float contentY = y + 20;
 
     if (slot.state == PlayerSlotState::Empty) {
         SDL_Color textColor = {150, 150, 160, 255};
@@ -339,20 +339,29 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
     SDL_Color playerColor = Renderer::getPlayerColor(slot.colorIndex);
 
     if (slot.state == PlayerSlotState::Ready) {
-        renderer.drawTextShadow("READY", centerX, y + height / 2.0f - 30,
-                               renderer.getFontLarge(), playerColor, TextAlign::Center);
-        renderer.drawText(slot.getDisplayName(slotIndex), centerX, y + height / 2.0f + 30,
+        // Show bot preview and stats when ready
+        renderBotPreview(slot, centerX, y + height * 0.35f, 60.0f);
+
+        renderer.drawTextShadow("READY", centerX, y + height * 0.65f,
+                               renderer.getFontMedium(), playerColor, TextAlign::Center);
+        renderer.drawText(slot.getDisplayName(slotIndex), centerX, y + height * 0.75f,
                          renderer.getFontSmall(), playerColor, TextAlign::Center);
+
+        // Show stats below
+        BotStats stats = calculateBotStats(slot);
+        renderStatsDisplay(stats, x + 15, y + height * 0.8f, width - 30, playerColor);
         return;
     }
 
-    // Configuring state - show all options
+    // Configuring state - split into left (options) and right (preview + stats)
     auto& registry = ComponentRegistry::instance();
     const char* optionLabels[] = {"TAG", "ENGINE", "FRAME", "WEAPON", "SPECIAL", "COLOR", "OK"};
 
-    float lineHeight = 28.0f;
-    float labelX = x + 20;
-    float valueX = x + width - 20;
+    // Left side: options (narrower)
+    float optionsWidth = width * 0.55f;
+    float lineHeight = 24.0f;
+    float labelX = x + 15;
+    float valueX = x + optionsWidth - 10;
 
     for (int opt = 0; opt < static_cast<int>(ConfigOption::COUNT); ++opt) {
         bool selected = (slot.currentOption == static_cast<ConfigOption>(opt));
@@ -368,24 +377,39 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
 
         std::string value;
         switch (static_cast<ConfigOption>(opt)) {
-            case ConfigOption::Tag:
-                value = "< " + slot.getDisplayName(slotIndex) + " >";
+            case ConfigOption::Tag: {
+                std::string tagName = slot.getDisplayName(slotIndex);
+                if (tagName.length() > 8) tagName = tagName.substr(0, 7) + "..";
+                value = "< " + tagName + " >";
                 break;
-            case ConfigOption::Engine:
-                value = "< " + registry.getEngine(slot.engineIndex).name + " >";
+            }
+            case ConfigOption::Engine: {
+                std::string name = registry.getEngine(slot.engineIndex).name;
+                if (name.length() > 8) name = name.substr(0, 7) + "..";
+                value = "< " + name + " >";
                 break;
-            case ConfigOption::Frame:
-                value = "< " + registry.getFrame(slot.frameIndex).name + " >";
+            }
+            case ConfigOption::Frame: {
+                std::string name = registry.getFrame(slot.frameIndex).name;
+                if (name.length() > 8) name = name.substr(0, 7) + "..";
+                value = "< " + name + " >";
                 break;
-            case ConfigOption::Weapon:
-                value = "< " + registry.getWeapon(slot.weaponIndex).name + " >";
+            }
+            case ConfigOption::Weapon: {
+                std::string name = registry.getWeapon(slot.weaponIndex).name;
+                if (name.length() > 8) name = name.substr(0, 7) + "..";
+                value = "< " + name + " >";
                 break;
-            case ConfigOption::Special:
-                value = "< " + registry.getSpecial(slot.specialIndex).name + " >";
+            }
+            case ConfigOption::Special: {
+                std::string name = registry.getSpecial(slot.specialIndex).name;
+                if (name.length() > 8) name = name.substr(0, 7) + "..";
+                value = "< " + name + " >";
                 break;
+            }
             case ConfigOption::Color:
                 // Draw color swatch instead
-                renderer.drawRect(valueX - 60, lineY, 50, 20, playerColor, true);
+                renderer.drawRect(valueX - 45, lineY + 2, 40, 16, playerColor, true);
                 value = "";
                 break;
             case ConfigOption::OK:
@@ -399,6 +423,18 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
             renderer.drawText(value, valueX, lineY, renderer.getFontSmall(), valueColor, TextAlign::Right);
         }
     }
+
+    // Right side: bot preview and stats
+    float previewX = x + optionsWidth + (width - optionsWidth) / 2.0f;
+    float previewY = y + 70;
+
+    // Bot preview
+    renderBotPreview(slot, previewX, previewY, 50.0f);
+
+    // Stats display below preview
+    BotStats stats = calculateBotStats(slot);
+    float statsWidth = width - optionsWidth - 20;
+    renderStatsDisplay(stats, x + optionsWidth + 5, y + 150, statsWidth, playerColor);
 }
 
 // StageSelectScreen
@@ -530,6 +566,171 @@ void StageSelectScreen::render() {
     renderer.drawText("A: Confirm   B: Back",
                      WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 30,
                      renderer.getFontSmall(), hintColor, TextAlign::Center);
+}
+
+BotStats GameSetupScreen::calculateBotStats(const PlayerSlot& slot) const {
+    auto& registry = ComponentRegistry::instance();
+    const auto& frame = registry.getFrame(slot.frameIndex);
+    const auto& engine = registry.getEngine(slot.engineIndex);
+    const auto& weapon = registry.getWeapon(slot.weaponIndex);
+
+    BotStats stats;
+
+    // Speed: based on engine power and torque (0-1 normalized)
+    // Max power is ~2.0, max torque is ~2.0
+    float speedRaw = (engine.power * 0.6f + engine.torque * 0.4f);
+    stats.speed = std::min(1.0f, speedRaw / 2.0f);
+
+    // Damage: based on weapon damage (0-1 normalized)
+    // Max damage is ~25
+    stats.damage = std::min(1.0f, weapon.damage / 25.0f);
+
+    // Armor: based on frame armor (0-1 normalized)
+    // Armor ranges from 0.8 to 2.0
+    stats.armor = std::min(1.0f, (frame.armor - 0.5f) / 1.5f);
+
+    // Weight: combined weight (0-1 normalized)
+    // Total weight can range from ~3 to ~10
+    float totalWeight = frame.weight + engine.weight + weapon.weight;
+    stats.weight = std::min(1.0f, (totalWeight - 2.0f) / 8.0f);
+
+    return stats;
+}
+
+void GameSetupScreen::renderStatsDisplay(const BotStats& stats, float x, float y, float width, SDL_Color playerColor) {
+    auto& renderer = Renderer::instance();
+
+    // Stat labels and values
+    struct StatInfo {
+        const char* name;
+        const char* icon;  // Simple ASCII icon
+        float value;
+        SDL_Color barColor;
+    };
+
+    StatInfo statInfos[] = {
+        {"Speed",  ">>", stats.speed,  {100, 200, 255, 255}},   // Blue
+        {"Damage", "**", stats.damage, {255, 100, 100, 255}},   // Red
+        {"Armor",  "[]", stats.armor,  {100, 255, 150, 255}},   // Green
+        {"Weight", "##", stats.weight, {200, 150, 100, 255}}    // Brown/orange
+    };
+
+    float barHeight = 16.0f;
+    float barSpacing = 22.0f;
+    float iconWidth = 25.0f;
+    float labelWidth = 55.0f;
+    float barWidth = width - iconWidth - labelWidth - 10.0f;
+
+    // Background panel
+    SDL_Color panelBg = {25, 25, 35, 220};
+    renderer.drawRect(x - 5, y - 5, width + 10, 4 * barSpacing + 10, panelBg, true);
+
+    // Border accent
+    SDL_Color borderColor = {playerColor.r / 2, playerColor.g / 2, playerColor.b / 2, 200};
+    renderer.drawRectOutline(x - 5, y - 5, width + 10, 4 * barSpacing + 10, borderColor, 2.0f);
+
+    for (int i = 0; i < 4; ++i) {
+        float lineY = y + i * barSpacing;
+        const auto& info = statInfos[i];
+
+        // Icon (simple text icon)
+        SDL_Color iconColor = info.barColor;
+        renderer.drawText(info.icon, x, lineY, renderer.getFontSmall(), iconColor, TextAlign::Left);
+
+        // Label
+        SDL_Color labelColor = {200, 200, 200, 255};
+        renderer.drawText(info.name, x + iconWidth, lineY, renderer.getFontSmall(), labelColor, TextAlign::Left);
+
+        // Bar background
+        float barX = x + iconWidth + labelWidth;
+        SDL_Color barBg = {40, 40, 50, 255};
+        renderer.drawRect(barX, lineY + 2, barWidth, barHeight, barBg, true);
+
+        // Bar fill
+        float fillWidth = barWidth * info.value;
+        renderer.drawRect(barX, lineY + 2, fillWidth, barHeight, info.barColor, true);
+
+        // Bar segments (notches for visual style)
+        SDL_Color notchColor = {20, 20, 30, 200};
+        int numSegments = 5;
+        for (int s = 1; s < numSegments; ++s) {
+            float notchX = barX + (barWidth * s / numSegments);
+            renderer.drawRect(notchX - 1, lineY + 2, 2, barHeight, notchColor, true);
+        }
+
+        // Bar border
+        SDL_Color barBorder = {80, 80, 100, 255};
+        renderer.drawRectOutline(barX, lineY + 2, barWidth, barHeight, barBorder, 1.0f);
+    }
+}
+
+void GameSetupScreen::renderBotPreview(const PlayerSlot& slot, float centerX, float centerY, float size) {
+    auto& renderer = Renderer::instance();
+    auto& registry = ComponentRegistry::instance();
+
+    const auto& frame = registry.getFrame(slot.frameIndex);
+    const auto& weapon = registry.getWeapon(slot.weaponIndex);
+    SDL_Color playerColor = Renderer::getPlayerColor(slot.colorIndex);
+
+    // Scale based on frame radius
+    float scale = size / 50.0f;  // Normalize to 50 pixel base
+    float bodyRadius = frame.radius * scale;
+
+    // Draw shadow
+    SDL_Color shadowColor = {0, 0, 0, 80};
+    renderer.drawRect(centerX - bodyRadius + 3, centerY - bodyRadius + 3,
+                     bodyRadius * 2, bodyRadius * 2, shadowColor, true);
+
+    // Main body
+    renderer.drawRect(centerX - bodyRadius, centerY - bodyRadius,
+                     bodyRadius * 2, bodyRadius * 2, playerColor, true);
+
+    // Body border
+    SDL_Color borderColor = {
+        static_cast<uint8_t>(playerColor.r * 0.6f),
+        static_cast<uint8_t>(playerColor.g * 0.6f),
+        static_cast<uint8_t>(playerColor.b * 0.6f),
+        255
+    };
+    renderer.drawRectOutline(centerX - bodyRadius, centerY - bodyRadius,
+                            bodyRadius * 2, bodyRadius * 2, borderColor, 2.0f);
+
+    // Weapon indicator (front of bot)
+    float weaponLength = 15.0f * scale;
+    float weaponWidth = 8.0f * scale;
+
+    // Weapon color based on type
+    SDL_Color weaponColor = {180, 180, 200, 255};
+    if (weapon.type == WeaponType::Passive) {
+        weaponColor = {255, 150, 50, 255};  // Orange for spinners etc
+    } else {
+        weaponColor = {200, 200, 220, 255};  // Silver for active weapons
+    }
+
+    // Draw weapon at top (front)
+    renderer.drawRect(centerX - weaponWidth / 2, centerY - bodyRadius - weaponLength,
+                     weaponWidth, weaponLength, weaponColor, true);
+
+    // Direction indicator (small triangle/arrow at front)
+    SDL_Color arrowColor = {255, 255, 255, 200};
+    float arrowSize = 6.0f * scale;
+    renderer.drawRect(centerX - arrowSize / 2, centerY - bodyRadius + 5,
+                     arrowSize, arrowSize, arrowColor, true);
+
+    // Engine exhaust indicators (back of bot)
+    SDL_Color exhaustColor = {100, 100, 120, 200};
+    float exhaustWidth = 6.0f * scale;
+    float exhaustLength = 8.0f * scale;
+
+    renderer.drawRect(centerX - bodyRadius / 2 - exhaustWidth / 2, centerY + bodyRadius,
+                     exhaustWidth, exhaustLength, exhaustColor, true);
+    renderer.drawRect(centerX + bodyRadius / 2 - exhaustWidth / 2, centerY + bodyRadius,
+                     exhaustWidth, exhaustLength, exhaustColor, true);
+
+    // Frame name label
+    SDL_Color labelColor = {200, 200, 200, 255};
+    renderer.drawText(frame.name, centerX, centerY + bodyRadius + 20,
+                     renderer.getFontSmall(), labelColor, TextAlign::Center);
 }
 
 } // namespace ScrapHeap

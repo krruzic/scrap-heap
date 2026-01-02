@@ -10,6 +10,14 @@ namespace ScrapHeap {
 // Forward declarations
 struct GameContext;
 
+// Calculated bot stats for display
+struct BotStats {
+    float speed;      // 0.0 - 1.0 normalized
+    float damage;     // 0.0 - 1.0 normalized
+    float armor;      // 0.0 - 1.0 normalized
+    float weight;     // 0.0 - 1.0 normalized
+};
+
 // Player slot state
 enum class PlayerSlotState {
     Empty,      // No player, waiting for join
@@ -87,6 +95,15 @@ private:
 
     // Render a single slot
     void renderSlot(int slotIndex, float x, float y, float width, float height);
+
+    // Calculate bot stats from components
+    BotStats calculateBotStats(const PlayerSlot& slot) const;
+
+    // Render stats display (like reference image)
+    void renderStatsDisplay(const BotStats& stats, float x, float y, float width, SDL_Color playerColor);
+
+    // Render bot preview visualization
+    void renderBotPreview(const PlayerSlot& slot, float centerX, float centerY, float size);
 };
 
 // Stage select screen
