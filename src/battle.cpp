@@ -252,6 +252,18 @@ void BattleManager::updateBots(BattleState& state, float dt) {
 }
 
 void BattleManager::updateShrinkingWall(BattleState& state, float dt) {
+    // Update animation timers (even when inactive for visual continuity)
+    state.wall.animTimer += dt * 3.0f;  // Fast animation
+    state.wall.pulseTimer += dt * 1.5f;  // Slower pulse
+
+    // Randomize arc offsets periodically for lightning effect
+    if (static_cast<int>(state.wall.animTimer * 10) % 3 == 0) {
+        for (int i = 0; i < 16; ++i) {
+            state.wall.arcOffsets[i] = (std::sin(state.wall.animTimer * 7.0f + i * 2.3f) +
+                                        std::cos(state.wall.animTimer * 11.0f + i * 1.7f)) * 8.0f;
+        }
+    }
+
     // Don't start wall until after initial delay
     if (state.matchTimer < ShrinkingWall::INITIAL_DELAY) {
         return;
@@ -469,6 +481,9 @@ void BattleManager::updateCombatEvents(BattleState& state, float dt) {
                 popup.playerIndex = it->sourceBot;
                 popup.timer = KillPopup::DURATION;
                 state.killPopups.push_back(popup);
+
+                // Reset the storm on player kill
+                state.wall.reset(state.stage.width, state.stage.height);
             }
         }
 
@@ -688,52 +703,144 @@ void BattleManager::renderShrinkingWall(const BattleState& state) {
 
     auto& renderer = Renderer::instance();
 
-    // Translucent purple color for the danger zone
-    SDL_Color wallColor = {128, 0, 180, 100};  // Purple with transparency
-
     float ox = state.cameraOffsetX;
     float oy = state.cameraOffsetY;
 
-    // Draw four rectangles for the wall areas (outside safe zone)
-    // Left wall
-    if (state.wall.left > 0) {
-        renderer.drawRect(ox, oy, state.wall.left, state.stage.height, wallColor, true);
-    }
+    // Animated pulse effect
+    float pulse = 0.7f + 0.3f * std::sin(state.wall.pulseTimer * 2.0f);
+    float fastPulse = 0.5f + 0.5f * std::sin(state.wall.animTimer * 5.0f);
 
-    // Right wall
+    // === Layer 1: Deep storm background (dark purple/blue) ===
+    uint8_t baseAlpha = static_cast<uint8_t>(60 + 20 * pulse);
+    SDL_Color stormBase = {40, 10, 80, baseAlpha};
+
+    // Draw storm zone rectangles
+    if (state.wall.left > 0) {
+        renderer.drawRect(ox, oy, state.wall.left, state.stage.height, stormBase, true);
+    }
     if (state.wall.right < state.stage.width) {
         renderer.drawRect(ox + state.wall.right, oy,
-                         state.stage.width - state.wall.right, state.stage.height, wallColor, true);
+                         state.stage.width - state.wall.right, state.stage.height, stormBase, true);
     }
-
-    // Top wall (between left and right walls)
     if (state.wall.top > 0) {
         renderer.drawRect(ox + state.wall.left, oy,
-                         state.wall.right - state.wall.left, state.wall.top, wallColor, true);
+                         state.wall.right - state.wall.left, state.wall.top, stormBase, true);
     }
-
-    // Bottom wall (between left and right walls)
     if (state.wall.bottom < state.stage.height) {
         renderer.drawRect(ox + state.wall.left, oy + state.wall.bottom,
                          state.wall.right - state.wall.left,
-                         state.stage.height - state.wall.bottom, wallColor, true);
+                         state.stage.height - state.wall.bottom, stormBase, true);
     }
 
-    // Draw safe zone border
-    SDL_Color borderColor = {200, 100, 255, 200};
-    renderer.drawRectOutline(ox + state.wall.left, oy + state.wall.top,
-                            state.wall.right - state.wall.left,
-                            state.wall.bottom - state.wall.top,
-                            borderColor, 2.0f);
+    // === Layer 2: Energy field overlay (cyan/electric blue) ===
+    uint8_t energyAlpha = static_cast<uint8_t>(30 + 25 * fastPulse);
+    SDL_Color energyColor = {0, 180, 255, energyAlpha};
 
-    // Draw target zone border (where wall is heading)
+    if (state.wall.left > 0) {
+        renderer.drawRect(ox, oy, state.wall.left, state.stage.height, energyColor, true);
+    }
+    if (state.wall.right < state.stage.width) {
+        renderer.drawRect(ox + state.wall.right, oy,
+                         state.stage.width - state.wall.right, state.stage.height, energyColor, true);
+    }
+    if (state.wall.top > 0) {
+        renderer.drawRect(ox + state.wall.left, oy,
+                         state.wall.right - state.wall.left, state.wall.top, energyColor, true);
+    }
+    if (state.wall.bottom < state.stage.height) {
+        renderer.drawRect(ox + state.wall.left, oy + state.wall.bottom,
+                         state.wall.right - state.wall.left,
+                         state.stage.height - state.wall.bottom, energyColor, true);
+    }
+
+    // === Layer 3: Main energy border (bright electric) ===
+    float safeX = ox + state.wall.left;
+    float safeY = oy + state.wall.top;
+    float safeW = state.wall.right - state.wall.left;
+    float safeH = state.wall.bottom - state.wall.top;
+
+    // Outer glow (pulsing)
+    uint8_t glowAlpha = static_cast<uint8_t>(100 + 80 * pulse);
+    SDL_Color outerGlow = {100, 50, 200, static_cast<uint8_t>(glowAlpha / 2)};
+    renderer.drawRectOutline(safeX - 4, safeY - 4, safeW + 8, safeH + 8, outerGlow, 6.0f);
+
+    SDL_Color midGlow = {150, 100, 255, glowAlpha};
+    renderer.drawRectOutline(safeX - 2, safeY - 2, safeW + 4, safeH + 4, midGlow, 3.0f);
+
+    // Core border (bright cyan/white)
+    uint8_t coreAlpha = static_cast<uint8_t>(180 + 75 * fastPulse);
+    SDL_Color coreBorder = {180, 220, 255, coreAlpha};
+    renderer.drawRectOutline(safeX, safeY, safeW, safeH, coreBorder, 2.0f);
+
+    // === Layer 4: Lightning arcs along the border ===
+    // Draw lightning segments along each edge
+    int numArcs = 8;
+    float segmentW = safeW / numArcs;
+    float segmentH = safeH / numArcs;
+
+    for (int i = 0; i < numArcs; ++i) {
+        float arcOffset = state.wall.arcOffsets[i % 16];
+        float arcOffset2 = state.wall.arcOffsets[(i + 8) % 16];
+
+        // Flicker effect
+        float flicker = (std::sin(state.wall.animTimer * 15.0f + i * 1.7f) > 0.3f) ? 1.0f : 0.4f;
+        uint8_t arcAlpha = static_cast<uint8_t>(200 * flicker);
+
+        // Electric colors - alternating cyan and purple
+        SDL_Color arcColor = (i % 2 == 0) ?
+            SDL_Color{100, 200, 255, arcAlpha} :
+            SDL_Color{200, 150, 255, arcAlpha};
+
+        // Top edge arcs
+        float topX1 = safeX + i * segmentW;
+        float topX2 = safeX + (i + 1) * segmentW;
+        float topY = safeY + arcOffset * 0.5f;
+        renderer.drawLine(topX1, safeY, topX1 + segmentW * 0.5f, topY, arcColor, 2.0f);
+        renderer.drawLine(topX1 + segmentW * 0.5f, topY, topX2, safeY, arcColor, 2.0f);
+
+        // Bottom edge arcs
+        float botY = safeY + safeH + arcOffset2 * 0.5f;
+        renderer.drawLine(topX1, safeY + safeH, topX1 + segmentW * 0.5f, botY, arcColor, 2.0f);
+        renderer.drawLine(topX1 + segmentW * 0.5f, botY, topX2, safeY + safeH, arcColor, 2.0f);
+
+        // Left edge arcs
+        float leftY1 = safeY + i * segmentH;
+        float leftY2 = safeY + (i + 1) * segmentH;
+        float leftX = safeX + arcOffset * 0.5f;
+        renderer.drawLine(safeX, leftY1, leftX, leftY1 + segmentH * 0.5f, arcColor, 2.0f);
+        renderer.drawLine(leftX, leftY1 + segmentH * 0.5f, safeX, leftY2, arcColor, 2.0f);
+
+        // Right edge arcs
+        float rightX = safeX + safeW + arcOffset2 * 0.5f;
+        renderer.drawLine(safeX + safeW, leftY1, rightX, leftY1 + segmentH * 0.5f, arcColor, 2.0f);
+        renderer.drawLine(rightX, leftY1 + segmentH * 0.5f, safeX + safeW, leftY2, arcColor, 2.0f);
+    }
+
+    // === Layer 5: Spark particles at corners ===
+    float sparkSize = 4.0f + 3.0f * fastPulse;
+    SDL_Color sparkColor = {255, 255, 255, static_cast<uint8_t>(200 * pulse)};
+
+    // Corner sparks
+    renderer.drawRect(safeX - sparkSize/2, safeY - sparkSize/2, sparkSize, sparkSize, sparkColor, true);
+    renderer.drawRect(safeX + safeW - sparkSize/2, safeY - sparkSize/2, sparkSize, sparkSize, sparkColor, true);
+    renderer.drawRect(safeX - sparkSize/2, safeY + safeH - sparkSize/2, sparkSize, sparkSize, sparkColor, true);
+    renderer.drawRect(safeX + safeW - sparkSize/2, safeY + safeH - sparkSize/2, sparkSize, sparkSize, sparkColor, true);
+
+    // === Layer 6: Target zone indicator ===
     if (state.wall.currentPhase < ShrinkingWall::MAX_PHASES) {
-        SDL_Color targetColor = {255, 150, 255, 80};
+        uint8_t targetAlpha = static_cast<uint8_t>(40 + 30 * std::sin(state.wall.animTimer * 2.0f));
+        SDL_Color targetColor = {255, 100, 200, targetAlpha};
         renderer.drawRectOutline(ox + state.wall.targetLeft, oy + state.wall.targetTop,
                                 state.wall.targetRight - state.wall.targetLeft,
                                 state.wall.targetBottom - state.wall.targetTop,
                                 targetColor, 1.0f);
     }
+
+    // === Storm warning text ===
+    float warningPulse = 0.5f + 0.5f * std::sin(state.wall.animTimer * 4.0f);
+    SDL_Color warningColor = {255, 150, 255, static_cast<uint8_t>(150 + 105 * warningPulse)};
+    renderer.drawText("STORM", WINDOW_WIDTH / 2.0f, oy + state.stage.height + 15,
+                     renderer.getFontSmall(), warningColor, TextAlign::Center);
 }
 
 void BattleManager::renderHUD(const BattleState& state) {

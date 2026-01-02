@@ -44,6 +44,11 @@ struct ShrinkingWall {
     bool active = false;
     float damagePerSecond = 5.0f;
 
+    // Animation state for electrical effect
+    float animTimer = 0.0f;
+    float pulseTimer = 0.0f;
+    float arcOffsets[16] = {0};  // Random offsets for lightning arcs
+
     // Timing constants
     static constexpr float INITIAL_DELAY = 30.0f;       // Wait 30s before wall appears
     static constexpr float PHASE_DURATION = 20.0f;      // Each phase lasts 20s
@@ -54,6 +59,25 @@ struct ShrinkingWall {
     float getShrinkSpeed() const {
         // Starts slow, gets faster each phase
         return 0.5f + currentPhase * 0.4f;
+    }
+
+    // Reset storm to stage boundaries
+    void reset(float stageWidth, float stageHeight) {
+        left = 0.0f;
+        right = stageWidth;
+        top = 0.0f;
+        bottom = stageHeight;
+        currentPhase = 0;
+        phaseTimer = 0.0f;
+        active = false;
+        damagePerSecond = 5.0f;
+
+        // Set new targets
+        float shrinkAmount = stageWidth * 0.15f;
+        targetLeft = shrinkAmount;
+        targetRight = stageWidth - shrinkAmount;
+        targetTop = shrinkAmount;
+        targetBottom = stageHeight - shrinkAmount;
     }
 };
 
