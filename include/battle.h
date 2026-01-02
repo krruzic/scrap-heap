@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <algorithm>
 
 namespace ScrapHeap {
 
@@ -64,6 +65,17 @@ struct BotBattleStats {
     float damageTaken = 0.0f;
 };
 
+// Kill popup animation (+1 that fades)
+struct KillPopup {
+    int playerIndex;      // Which player got the kill
+    float timer;          // Time remaining (starts at 1.0)
+    static constexpr float DURATION = 1.0f;
+
+    float getAlpha() const {
+        return std::min(1.0f, timer / 0.3f);  // Fade out in last 0.3s
+    }
+};
+
 // Battle state
 struct BattleState {
     // Bots in the arena
@@ -89,6 +101,9 @@ struct BattleState {
     // Combat events for visual feedback
     std::vector<CombatEvent> combatEvents;
 
+    // Kill popups (+1 animations)
+    std::vector<KillPopup> killPopups;
+
     // Timer
     float matchTimer = 0.0f;
     float maxMatchTime = 180.0f;  // 3 minutes
@@ -97,7 +112,8 @@ struct BattleState {
     BattleResult result = BattleResult::InProgress;
     int winnerIndex = -1;
     float gameOverTimer = 0.0f;
-    static constexpr float GAME_OVER_DELAY = 8.0f;  // Longer to show detailed results
+    bool playersConfirmed[4] = {false, false, false, false};  // Track A button presses
+    bool resultsConfirmed = false;  // All players confirmed or Start pressed
 
     // Pause state
     bool paused = false;
@@ -153,6 +169,9 @@ private:
     // Update smoke clouds
     static void updateSmokeClouds(BattleState& state, float dt);
 
+    // Update kill popups
+    static void updateKillPopups(BattleState& state, float dt);
+
     // Update shrinking wall
     static void updateShrinkingWall(BattleState& state, float dt);
 
@@ -167,6 +186,9 @@ private:
 
     // Render game over overlay
     static void renderGameOver(const BattleState& state);
+
+    // Handle win screen input
+    static void handleWinScreenInput(BattleState& state, GameContext& ctx);
 };
 
 } // namespace ScrapHeap

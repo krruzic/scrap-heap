@@ -124,7 +124,9 @@ void BattleManager::update(BattleState& state, GameContext& ctx, float dt) {
 
     if (state.isGameOver()) {
         state.gameOverTimer += dt;
-        if (state.gameOverTimer >= BattleState::GAME_OVER_DELAY) {
+        // Check for confirmation input
+        handleWinScreenInput(state, ctx);
+        if (state.resultsConfirmed) {
             recordResults(state, ctx);
             ctx.changeState(GameState::MainMenu);
         }
@@ -216,8 +218,9 @@ void BattleManager::update(BattleState& state, GameContext& ctx, float dt) {
     updateShrinkingWall(state, dt);
     applyWallDamage(state, dt);
 
-    // Update combat events
+    // Update combat events and kill popups
     updateCombatEvents(state, dt);
+    updateKillPopups(state, dt);
 
     // Check for game over
     checkGameOver(state);
@@ -425,6 +428,17 @@ void BattleManager::updateSmokeClouds(BattleState& state, float dt) {
     }
 }
 
+void BattleManager::updateKillPopups(BattleState& state, float dt) {
+    for (auto it = state.killPopups.begin(); it != state.killPopups.end(); ) {
+        it->timer -= dt;
+        if (it->timer <= 0) {
+            it = state.killPopups.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 void BattleManager::updateCombatEvents(BattleState& state, float dt) {
     for (auto it = state.combatEvents.begin(); it != state.combatEvents.end(); ) {
         // Process events for stats tracking (only once when newly created)
@@ -446,9 +460,15 @@ void BattleManager::updateCombatEvents(BattleState& state, float dt) {
             if (it->targetBot >= 0 && state.botStats.count(it->targetBot)) {
                 state.botStats[it->targetBot].deaths++;
             }
-            // Track kill for the killer
+            // Track kill for the killer and create popup
             if (it->sourceBot >= 0 && state.botStats.count(it->sourceBot)) {
                 state.botStats[it->sourceBot].kills++;
+
+                // Create kill popup
+                KillPopup popup;
+                popup.playerIndex = it->sourceBot;
+                popup.timer = KillPopup::DURATION;
+                state.killPopups.push_back(popup);
             }
         }
 
@@ -476,6 +496,59 @@ void BattleManager::handleInput(BattleState& state, GameContext& ctx) {
         if (controller && controller->buttonStartPressed()) {
             ctx.changeState(GameState::MainMenu);
         }
+    }
+}
+
+void BattleManager::handleWinScreenInput(BattleState& state, GameContext& ctx) {
+    auto& input = InputManager::instance();
+    const auto& keyboard = input.getKeyboard();
+
+    // Check for Start button (any player) - instant confirm
+    for (int i = 0; i < 8; ++i) {
+        const ControllerState* controller = input.getController(i);
+        if (controller && controller->buttonStartPressed()) {
+            state.resultsConfirmed = true;
+            return;
+        }
+    }
+
+    // Keyboard: Enter or Space as alternative
+    if (keyboard.enterPressed() || keyboard.spacePressed()) {
+        state.resultsConfirmed = true;
+        return;
+    }
+
+    // Check A button for each player
+    int numPlayers = static_cast<int>(state.bots.size());
+    for (int i = 0; i < numPlayers; ++i) {
+        const Bot& bot = state.bots[i];
+
+        // Find the slot for this bot
+        for (int slot = 0; slot < 4; ++slot) {
+            const auto& slotData = ctx.gameSetup.getSlots()[slot];
+            if (slotData.state != PlayerSlotState::Empty &&
+                slotData.getDisplayName(slot) == bot.displayName) {
+
+                // Check controller input for this slot
+                const ControllerState* controller = input.getController(slot);
+                if (controller && controller->buttonAPressed()) {
+                    state.playersConfirmed[i] = true;
+                }
+                break;
+            }
+        }
+    }
+
+    // Check if all players have confirmed
+    bool allConfirmed = true;
+    for (int i = 0; i < numPlayers; ++i) {
+        if (!state.playersConfirmed[i]) {
+            allConfirmed = false;
+            break;
+        }
+    }
+    if (allConfirmed) {
+        state.resultsConfirmed = true;
     }
 }
 
@@ -671,7 +744,7 @@ void BattleManager::renderHUD(const BattleState& state) {
     float barHeight = 20;
     float spacing = 20;
 
-    // Health bars for each player
+    // Health bars for each player (top center)
     float totalWidth = state.bots.size() * (barWidth + spacing) - spacing;
     float startX = (WINDOW_WIDTH - totalWidth) / 2.0f;
 
@@ -700,6 +773,63 @@ void BattleManager::renderHUD(const BattleState& state) {
             SDL_Color escapeColor = {255, 200, 50, 255};
             renderer.drawProgressBar(x, hudY + 48, barWidth, 8,
                                     bot.grabEscapeProgress, escapeColor, bgColor);
+        }
+    }
+
+    // Corner score displays (kills count)
+    // Positions: P1=top-left, P2=top-right, P3=bottom-left, P4=bottom-right
+    float cornerMargin = 20.0f;
+    float cornerPositions[4][2] = {
+        {cornerMargin, 90},                                    // Top-left
+        {WINDOW_WIDTH - cornerMargin, 90},                     // Top-right
+        {cornerMargin, WINDOW_HEIGHT - cornerMargin - 30},     // Bottom-left
+        {WINDOW_WIDTH - cornerMargin, WINDOW_HEIGHT - cornerMargin - 30}  // Bottom-right
+    };
+    TextAlign cornerAligns[4] = {
+        TextAlign::Left, TextAlign::Right, TextAlign::Left, TextAlign::Right
+    };
+
+    for (size_t i = 0; i < state.bots.size() && i < 4; ++i) {
+        const auto& bot = state.bots[i];
+        const auto& stats = state.botStats.at(bot.playerIndex);
+        SDL_Color playerColor = Renderer::getPlayerColor(bot.colorIndex);
+
+        if (!bot.isAlive) {
+            playerColor = {100, 100, 100, 255};
+        }
+
+        float px = cornerPositions[i][0];
+        float py = cornerPositions[i][1];
+        TextAlign align = cornerAligns[i];
+
+        // Draw score box background
+        float boxWidth = 80;
+        float boxHeight = 50;
+        float boxX = (align == TextAlign::Left) ? px - 5 : px - boxWidth + 5;
+        SDL_Color boxBg = {20, 20, 30, 180};
+        renderer.drawRect(boxX, py - 5, boxWidth, boxHeight, boxBg, true);
+
+        // Player indicator (small colored square)
+        float sqSize = 12;
+        float sqX = (align == TextAlign::Left) ? px : px - sqSize;
+        renderer.drawRect(sqX, py, sqSize, sqSize, playerColor, true);
+
+        // KO count
+        std::string koText = std::to_string(stats.kills) + " KO";
+        float textX = (align == TextAlign::Left) ? px + sqSize + 5 : px - sqSize - 5;
+        renderer.drawText(koText, textX, py - 2, renderer.getFontSmall(),
+                         {255, 255, 255, 255}, align);
+
+        // Show kill popups (+1) for this player
+        for (const auto& popup : state.killPopups) {
+            if (popup.playerIndex == bot.playerIndex) {
+                uint8_t alpha = static_cast<uint8_t>(popup.getAlpha() * 255);
+                SDL_Color popupColor = {100, 255, 100, alpha};
+                float popupY = py + 18 - (1.0f - popup.timer) * 20;  // Float upward
+                float popupX = (align == TextAlign::Left) ? px + 50 : px - 50;
+                renderer.drawText("+1", popupX, popupY, renderer.getFontSmall(),
+                                 popupColor, TextAlign::Center);
+            }
         }
     }
 
@@ -869,14 +999,39 @@ void BattleManager::renderGameOver(const BattleState& state) {
     renderer.drawText(timeStr, WINDOW_WIDTH / 2.0f, panelY + panelHeight + 30,
                      renderer.getFontSmall(), timeColor, TextAlign::Center);
 
-    // Countdown to return
-    int countdown = static_cast<int>(BattleState::GAME_OVER_DELAY - state.gameOverTimer) + 1;
-    if (countdown > 0 && countdown <= 5) {
-        SDL_Color countColor = {120, 120, 130, 255};
-        renderer.drawText("Returning to menu in " + std::to_string(countdown) + "...",
-                         WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 40,
-                         renderer.getFontSmall(), countColor, TextAlign::Center);
+    // Player confirmation status
+    float confirmY = panelY + panelHeight + 60;
+    int confirmedCount = 0;
+    for (int i = 0; i < numPlayers; ++i) {
+        if (state.playersConfirmed[i]) confirmedCount++;
     }
+
+    // Show confirmation indicators for each player
+    float confirmTotalWidth = numPlayers * 30.0f + (numPlayers - 1) * 15.0f;
+    float confirmStartX = (WINDOW_WIDTH - confirmTotalWidth) / 2.0f;
+    for (int i = 0; i < numPlayers; ++i) {
+        float indicatorX = confirmStartX + i * 45.0f;
+        SDL_Color playerColor = Renderer::getPlayerColor(state.bots[i].colorIndex);
+
+        if (state.playersConfirmed[i]) {
+            // Confirmed - show checkmark with player color
+            renderer.drawRect(indicatorX, confirmY, 30, 30, playerColor, true);
+            renderer.drawText("OK", indicatorX + 15, confirmY + 6,
+                             renderer.getFontSmall(), {255, 255, 255, 255}, TextAlign::Center);
+        } else {
+            // Not confirmed - dim outline
+            SDL_Color dimColor = {playerColor.r / 2, playerColor.g / 2, playerColor.b / 2, 150};
+            renderer.drawRectOutline(indicatorX, confirmY, 30, 30, dimColor, 2.0f);
+            renderer.drawText("?", indicatorX + 15, confirmY + 6,
+                             renderer.getFontSmall(), dimColor, TextAlign::Center);
+        }
+    }
+
+    // Prompt at bottom
+    SDL_Color promptColor = {200, 200, 200, 255};
+    renderer.drawText("Press A to confirm or START to continue",
+                     WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 40,
+                     renderer.getFontSmall(), promptColor, TextAlign::Center);
 }
 
 } // namespace ScrapHeap
