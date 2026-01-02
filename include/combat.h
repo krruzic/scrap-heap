@@ -23,9 +23,10 @@ struct CombatEvent {
     Type type;
     float x, y;
     float value;  // Damage amount, etc.
-    int sourceBot;
-    int targetBot;
+    int sourceBot = -1;
+    int targetBot = -1;
     float timer;  // For visual duration
+    bool statsProcessed = false;  // Has this event been counted in stats?
 };
 
 // Combat system

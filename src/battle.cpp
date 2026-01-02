@@ -453,37 +453,38 @@ void BattleManager::updateKillPopups(BattleState& state, float dt) {
 
 void BattleManager::updateCombatEvents(BattleState& state, float dt) {
     for (auto it = state.combatEvents.begin(); it != state.combatEvents.end(); ) {
-        // Process events for stats tracking (only once when newly created)
-        bool isNewEvent = it->timer > 0.4f;  // Just spawned
+        // Process events for stats tracking (only once per event)
+        if (!it->statsProcessed) {
+            it->statsProcessed = true;
 
-        if (it->type == CombatEvent::Type::Damage && isNewEvent) {
-            // Track damage dealt and taken
-            if (it->sourceBot >= 0 && state.botStats.count(it->sourceBot)) {
-                state.botStats[it->sourceBot].damageDealt += it->value;
+            if (it->type == CombatEvent::Type::Damage) {
+                // Track damage dealt and taken
+                if (it->sourceBot >= 0 && state.botStats.count(it->sourceBot)) {
+                    state.botStats[it->sourceBot].damageDealt += it->value;
+                }
+                if (it->targetBot >= 0 && state.botStats.count(it->targetBot)) {
+                    state.botStats[it->targetBot].damageTaken += it->value;
+                }
             }
-            if (it->targetBot >= 0 && state.botStats.count(it->targetBot)) {
-                state.botStats[it->targetBot].damageTaken += it->value;
-            }
-        }
 
-        if (it->type == CombatEvent::Type::Death && it->timer > 0.9f) {
-            // Only process once (when timer is near max)
-            // Track death for the victim
-            if (it->targetBot >= 0 && state.botStats.count(it->targetBot)) {
-                state.botStats[it->targetBot].deaths++;
-            }
-            // Track kill for the killer and create popup
-            if (it->sourceBot >= 0 && state.botStats.count(it->sourceBot)) {
-                state.botStats[it->sourceBot].kills++;
+            if (it->type == CombatEvent::Type::Death) {
+                // Track death for the victim
+                if (it->targetBot >= 0 && state.botStats.count(it->targetBot)) {
+                    state.botStats[it->targetBot].deaths++;
+                }
+                // Track kill for the killer and create popup
+                if (it->sourceBot >= 0 && state.botStats.count(it->sourceBot)) {
+                    state.botStats[it->sourceBot].kills++;
 
-                // Create kill popup
-                KillPopup popup;
-                popup.playerIndex = it->sourceBot;
-                popup.timer = KillPopup::DURATION;
-                state.killPopups.push_back(popup);
+                    // Create kill popup
+                    KillPopup popup;
+                    popup.playerIndex = it->sourceBot;
+                    popup.timer = KillPopup::DURATION;
+                    state.killPopups.push_back(popup);
 
-                // Reset the storm on player kill
-                state.wall.reset(state.stage.width, state.stage.height);
+                    // Reset the storm on player kill
+                    state.wall.reset(state.stage.width, state.stage.height);
+                }
             }
         }
 

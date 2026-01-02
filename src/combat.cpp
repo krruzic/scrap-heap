@@ -324,23 +324,14 @@ void Combat::processHammer(Bot& attacker, std::vector<Bot>& bots,
                     if (attacker.damageBoostTimer > 0) damage *= 1.5f;
                     if (attacker.overdriveActive) damage *= 1.5f;
 
-                    // Armor piercing
-                    float effectiveArmor = target.armor;
-                    effectiveArmor = 1.0f + (effectiveArmor - 1.0f) * (1.0f - weapon.armorPierce);
-
-                    float actualDamage = damage / effectiveArmor;
-                    target.health -= actualDamage;
+                    // Armor piercing is applied by temporarily modifying target armor
+                    float originalArmor = target.armor;
+                    target.armor = 1.0f + (target.armor - 1.0f) * (1.0f - weapon.armorPierce);
 
                     Vec2 knockDir(target.x - attacker.x, target.y - attacker.y);
-                    Physics::applyKnockback(target, knockDir, weapon.knockback);
+                    applyDamage(target, damage, weapon.knockback, knockDir, &attacker, events);
 
-                    CombatEvent event;
-                    event.type = CombatEvent::Type::Damage;
-                    event.x = target.x;
-                    event.y = target.y;
-                    event.value = actualDamage;
-                    event.timer = 0.5f;
-                    events.push_back(event);
+                    target.armor = originalArmor;
                 }
             }
         }
@@ -675,6 +666,8 @@ void Combat::processHazards(std::vector<Bot>& bots, StageDef& stage,
                     event.type = CombatEvent::Type::Death;
                     event.x = bot.x;
                     event.y = bot.y;
+                    event.targetBot = bot.playerIndex;
+                    event.sourceBot = -1;  // Environmental death
                     event.timer = 1.0f;
                     events.push_back(event);
                 }
@@ -693,6 +686,8 @@ void Combat::processHazards(std::vector<Bot>& bots, StageDef& stage,
                             event.type = CombatEvent::Type::Death;
                             event.x = bot.x;
                             event.y = bot.y;
+                            event.targetBot = bot.playerIndex;
+                            event.sourceBot = -1;  // Environmental death
                             event.timer = 1.0f;
                             events.push_back(event);
                         }

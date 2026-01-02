@@ -155,7 +155,7 @@ void GameSetupScreen::handleInput(GameContext& ctx) {
     int ready = countReadyPlayers();
 
     if (joined >= 2 && ready == joined) {
-        ctx.stageSelect.enter(firstReadyPlayer);
+        ctx.stageSelect.enter(firstReadyPlayer, slots[firstReadyPlayer].colorIndex);
         ctx.changeState(GameState::StageSelect);
     }
 }
@@ -438,8 +438,9 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
 }
 
 // StageSelectScreen
-void StageSelectScreen::enter(int player) {
+void StageSelectScreen::enter(int player, int playerColorIndex) {
     selectingPlayer = player;
+    selectingPlayerColor = playerColorIndex;
     selection = 0;
     previewTimer = 0.0f;
 }
@@ -501,7 +502,7 @@ void StageSelectScreen::render() {
                            renderer.getFontMedium(), titleColor, TextAlign::Center);
 
     // Who's selecting
-    SDL_Color selectingColor = Renderer::getPlayerColor(selectingPlayer);
+    SDL_Color selectingColor = Renderer::getPlayerColor(selectingPlayerColor);
     renderer.drawText("Player " + std::to_string(selectingPlayer + 1) + " is selecting",
                      WINDOW_WIDTH / 2.0f, 80,
                      renderer.getFontSmall(), selectingColor, TextAlign::Center);

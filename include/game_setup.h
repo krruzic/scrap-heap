@@ -109,7 +109,7 @@ private:
 // Stage select screen
 class StageSelectScreen {
 public:
-    void enter(int selectingPlayer);
+    void enter(int selectingPlayer, int playerColorIndex);
     void handleInput(GameContext& ctx);
     void update(float dt);
     void render();
@@ -119,6 +119,7 @@ public:
 private:
     int selection = 0;
     int selectingPlayer = 0;
+    int selectingPlayerColor = 0;
     float previewTimer = 0.0f;
 };
 
