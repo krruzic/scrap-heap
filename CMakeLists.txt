@@ -8,11 +8,25 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Fetch SDL3 and SDL3_ttf
 include(FetchContent)
 
+# Force static libraries globally
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+# Set SDL3 options BEFORE declaring
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_TEST OFF CACHE BOOL "" FORCE)
+
+# Set SDL3_ttf options BEFORE declaring
+set(SDL3TTF_VENDORED ON CACHE BOOL "" FORCE)
+set(SDL3TTF_SAMPLES OFF CACHE BOOL "" FORCE)
+set(SDL3TTF_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
     SDL3
     GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-    GIT_TAG release-3.2.4
+    GIT_TAG release-3.2.6
     GIT_SHALLOW TRUE
+    OVERRIDE_FIND_PACKAGE
 )
 
 FetchContent_Declare(
@@ -21,12 +35,6 @@ FetchContent_Declare(
     GIT_TAG release-3.2.0
     GIT_SHALLOW TRUE
 )
-
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
-set(SDL_TEST OFF CACHE BOOL "" FORCE)
-set(SDL3TTF_VENDORED ON CACHE BOOL "" FORCE)
-set(SDL3TTF_SAMPLES OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(SDL3 SDL3_ttf)
 
@@ -74,8 +82,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    SDL3::SDL3-static
-    SDL3_ttf::SDL3_ttf-static
+    SDL3::SDL3
+    SDL3_ttf::SDL3_ttf
 )
 
 # Copy assets to build directory
