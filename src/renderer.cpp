@@ -273,6 +273,131 @@ void Renderer::drawRotatedRect(float cx, float cy, float width, float height,
     SDL_RenderGeometry(sdlRenderer, nullptr, vertices, 4, indices, 6);
 }
 
+void Renderer::drawGradientRect(float x, float y, float w, float h,
+                                SDL_Color topColor, SDL_Color bottomColor) {
+    SDL_Vertex vertices[4];
+
+    SDL_FColor topFC = {
+        topColor.r / 255.0f, topColor.g / 255.0f,
+        topColor.b / 255.0f, topColor.a / 255.0f
+    };
+    SDL_FColor bottomFC = {
+        bottomColor.r / 255.0f, bottomColor.g / 255.0f,
+        bottomColor.b / 255.0f, bottomColor.a / 255.0f
+    };
+
+    vertices[0].position = {x, y};
+    vertices[0].color = topFC;
+    vertices[1].position = {x + w, y};
+    vertices[1].color = topFC;
+    vertices[2].position = {x + w, y + h};
+    vertices[2].color = bottomFC;
+    vertices[3].position = {x, y + h};
+    vertices[3].color = bottomFC;
+
+    int indices[6] = {0, 1, 2, 0, 2, 3};
+    SDL_RenderGeometry(sdlRenderer, nullptr, vertices, 4, indices, 6);
+}
+
+void Renderer::drawGradientRectH(float x, float y, float w, float h,
+                                 SDL_Color leftColor, SDL_Color rightColor) {
+    SDL_Vertex vertices[4];
+
+    SDL_FColor leftFC = {
+        leftColor.r / 255.0f, leftColor.g / 255.0f,
+        leftColor.b / 255.0f, leftColor.a / 255.0f
+    };
+    SDL_FColor rightFC = {
+        rightColor.r / 255.0f, rightColor.g / 255.0f,
+        rightColor.b / 255.0f, rightColor.a / 255.0f
+    };
+
+    vertices[0].position = {x, y};
+    vertices[0].color = leftFC;
+    vertices[1].position = {x + w, y};
+    vertices[1].color = rightFC;
+    vertices[2].position = {x + w, y + h};
+    vertices[2].color = rightFC;
+    vertices[3].position = {x, y + h};
+    vertices[3].color = leftFC;
+
+    int indices[6] = {0, 1, 2, 0, 2, 3};
+    SDL_RenderGeometry(sdlRenderer, nullptr, vertices, 4, indices, 6);
+}
+
+void Renderer::drawRoundedRect(float x, float y, float w, float h, float radius,
+                               SDL_Color color, bool filled) {
+    // Simplified rounded rect - draw main rect plus corner circles
+    if (filled) {
+        // Main body
+        drawRect(x + radius, y, w - 2 * radius, h, color, true);
+        drawRect(x, y + radius, w, h - 2 * radius, color, true);
+
+        // Corners
+        drawFilledCircle(x + radius, y + radius, radius, color);
+        drawFilledCircle(x + w - radius, y + radius, radius, color);
+        drawFilledCircle(x + radius, y + h - radius, radius, color);
+        drawFilledCircle(x + w - radius, y + h - radius, radius, color);
+    } else {
+        drawCircleOutline(x + radius, y + radius, radius, color, 2.0f);
+        drawCircleOutline(x + w - radius, y + radius, radius, color, 2.0f);
+        drawCircleOutline(x + radius, y + h - radius, radius, color, 2.0f);
+        drawCircleOutline(x + w - radius, y + h - radius, radius, color, 2.0f);
+    }
+}
+
+void Renderer::drawPanel(float x, float y, float w, float h, SDL_Color bgColor,
+                         SDL_Color borderColor, float borderThickness) {
+    // Shadow
+    SDL_Color shadow = {0, 0, 0, 60};
+    drawRect(x + 4, y + 4, w, h, shadow, true);
+
+    // Background
+    drawRect(x, y, w, h, bgColor, true);
+
+    // Border
+    drawRectOutline(x, y, w, h, borderColor, borderThickness);
+
+    // Subtle highlight at top
+    SDL_Color highlight = {255, 255, 255, 30};
+    drawRect(x + 2, y + 2, w - 4, 2, highlight, true);
+}
+
+void Renderer::drawGlowPanel(float x, float y, float w, float h,
+                             SDL_Color baseColor, float glowIntensity) {
+    // Outer glow layers
+    for (int i = 3; i >= 0; --i) {
+        float offset = i * 3.0f;
+        Uint8 alpha = static_cast<Uint8>(20 * glowIntensity * (4 - i));
+        SDL_Color glowColor = {baseColor.r, baseColor.g, baseColor.b, alpha};
+        drawRect(x - offset, y - offset, w + offset * 2, h + offset * 2, glowColor, true);
+    }
+
+    // Gradient background
+    SDL_Color topColor = {
+        static_cast<Uint8>(std::min(255, baseColor.r + 30)),
+        static_cast<Uint8>(std::min(255, baseColor.g + 30)),
+        static_cast<Uint8>(std::min(255, baseColor.b + 30)),
+        baseColor.a
+    };
+    SDL_Color bottomColor = {
+        static_cast<Uint8>(baseColor.r * 0.7f),
+        static_cast<Uint8>(baseColor.g * 0.7f),
+        static_cast<Uint8>(baseColor.b * 0.7f),
+        baseColor.a
+    };
+    drawGradientRect(x, y, w, h, topColor, bottomColor);
+
+    // Border
+    SDL_Color borderColor = {
+        static_cast<Uint8>(std::min(255, baseColor.r + 60)),
+        static_cast<Uint8>(std::min(255, baseColor.g + 60)),
+        static_cast<Uint8>(std::min(255, baseColor.b + 60)),
+        255
+    };
+    drawRectOutline(x, y, w, h, borderColor, 2.0f);
+}
+
 void Renderer::drawBot(const Bot& bot, SDL_Color color) {
     // Draw body
     drawRotatedRect(bot.x, bot.y, bot.radius * 1.8f, bot.radius * 1.4f,

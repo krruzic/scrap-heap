@@ -21,6 +21,10 @@ set(SDL3TTF_VENDORED ON CACHE BOOL "" FORCE)
 set(SDL3TTF_SAMPLES OFF CACHE BOOL "" FORCE)
 set(SDL3TTF_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
+# Also disable shared for SDL3_ttf explicitly
+set(SDL3_ttf_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL3_ttf_STATIC ON CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
     SDL3
     GIT_REPOSITORY https://github.com/libsdl-org/SDL.git

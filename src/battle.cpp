@@ -1128,7 +1128,10 @@ void BattleManager::renderGameOver(const BattleState& state) {
                              renderer.getFontSmall(), {255, 255, 255, 255}, TextAlign::Center);
         } else {
             // Not confirmed - dim outline
-            SDL_Color dimColor = {playerColor.r / 2, playerColor.g / 2, playerColor.b / 2, 150};
+            SDL_Color dimColor = {
+                static_cast<Uint8>(playerColor.r / 2),
+                static_cast<Uint8>(playerColor.g / 2),
+                static_cast<Uint8>(playerColor.b / 2), 150};
             renderer.drawRectOutline(indicatorX, confirmY, 30, 30, dimColor, 2.0f);
             renderer.drawText("?", indicatorX + 15, confirmY + 6,
                              renderer.getFontSmall(), dimColor, TextAlign::Center);

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <array>
 
 namespace ScrapHeap {
 
@@ -16,6 +17,34 @@ struct MenuItem {
     std::string label;
     std::function<void()> action;
     bool enabled = true;
+};
+
+// Floating particle for menu backgrounds
+struct MenuParticle {
+    float x, y;
+    float vx, vy;
+    float size;
+    float alpha;
+    float hue;  // For color cycling
+
+    void reset(float screenWidth, float screenHeight);
+    void update(float dt, float screenWidth, float screenHeight);
+};
+
+// Background effects manager
+class MenuBackground {
+public:
+    static constexpr int PARTICLE_COUNT = 30;
+
+    void init(float screenWidth, float screenHeight);
+    void update(float dt);
+    void render();
+
+private:
+    std::array<MenuParticle, PARTICLE_COUNT> particles;
+    float screenWidth = 0;
+    float screenHeight = 0;
+    float time = 0.0f;
 };
 
 // Virtual keyboard for tag entry
@@ -74,6 +103,10 @@ public:
 
 private:
     int selection = 0;
+    float animTime = 0.0f;  // For animations
+    float selectionBounce = 0.0f;  // Selection animation
+    MenuBackground background;
+
     static constexpr int ITEM_COUNT = 4;
     const char* ITEMS[ITEM_COUNT] = {"PLAY", "STATS", "TAGS", "QUIT"};
 };

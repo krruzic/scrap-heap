@@ -74,6 +74,26 @@ public:
     void drawRotatedRect(float cx, float cy, float width, float height,
                          float angle, SDL_Color color);
 
+    // Draw vertical gradient rectangle
+    void drawGradientRect(float x, float y, float w, float h,
+                          SDL_Color topColor, SDL_Color bottomColor);
+
+    // Draw horizontal gradient rectangle
+    void drawGradientRectH(float x, float y, float w, float h,
+                           SDL_Color leftColor, SDL_Color rightColor);
+
+    // Draw rounded rectangle
+    void drawRoundedRect(float x, float y, float w, float h, float radius,
+                         SDL_Color color, bool filled = true);
+
+    // Draw panel with border and optional glow
+    void drawPanel(float x, float y, float w, float h, SDL_Color bgColor,
+                   SDL_Color borderColor, float borderThickness = 2.0f);
+
+    // Draw glowing panel with gradient background
+    void drawGlowPanel(float x, float y, float w, float h,
+                       SDL_Color baseColor, float glowIntensity = 0.5f);
+
     // Draw a bot
     void drawBot(const Bot& bot, SDL_Color color);
 

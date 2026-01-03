@@ -296,23 +296,40 @@ void GameSetupScreen::update(float dt) {
 void GameSetupScreen::render() {
     auto& renderer = Renderer::instance();
 
+    // Gradient background
+    SDL_Color topColor = {18, 22, 38, 255};
+    SDL_Color bottomColor = {32, 28, 48, 255};
+    renderer.drawGradientRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, topColor, bottomColor);
+
+    // Title bar with gradient
+    SDL_Color titleBgTop = {45, 50, 75, 255};
+    SDL_Color titleBgBot = {35, 40, 60, 255};
+    renderer.drawGradientRect(0, 0, WINDOW_WIDTH, 70, titleBgTop, titleBgBot);
+
+    // Title bar accent line
+    SDL_Color accentLine = {255, 180, 80, 180};
+    renderer.drawRect(0, 68, WINDOW_WIDTH, 2, accentLine, true);
+
     // Title
     SDL_Color titleColor = {255, 200, 50, 255};
-    renderer.drawTextShadow("SELECT YOUR BOT", WINDOW_WIDTH / 2.0f, 30,
+    renderer.drawTextShadow("SELECT YOUR BOT", WINDOW_WIDTH / 2.0f, 20,
                            renderer.getFontMedium(), titleColor, TextAlign::Center);
 
     // Render 4 quadrants
     float quadWidth = WINDOW_WIDTH / 2.0f;
-    float quadHeight = (WINDOW_HEIGHT - 80) / 2.0f;
+    float quadHeight = (WINDOW_HEIGHT - 105) / 2.0f;
 
     for (int i = 0; i < 4; ++i) {
         float x = (i % 2) * quadWidth;
-        float y = 80 + (i / 2) * quadHeight;
+        float y = 75 + (i / 2) * quadHeight;
         renderSlot(i, x, y, quadWidth, quadHeight);
     }
 
-    // Controls hint
-    SDL_Color hintColor = {120, 120, 130, 255};
+    // Controls hint bar
+    SDL_Color hintBg = {0, 0, 0, 120};
+    renderer.drawRect(0, WINDOW_HEIGHT - 30, WINDOW_WIDTH, 30, hintBg, true);
+
+    SDL_Color hintColor = {150, 150, 160, 255};
     renderer.drawText("A: Join/Select   B: Back/Leave   D-PAD: Navigate",
                      WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 20,
                      renderer.getFontSmall(), hintColor, TextAlign::Center);
@@ -496,15 +513,34 @@ void StageSelectScreen::update(float dt) {
 void StageSelectScreen::render() {
     auto& renderer = Renderer::instance();
 
+    // Gradient background
+    SDL_Color topColor = {18, 22, 38, 255};
+    SDL_Color bottomColor = {32, 28, 48, 255};
+    renderer.drawGradientRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, topColor, bottomColor);
+
+    // Title bar with gradient
+    SDL_Color titleBgTop = {45, 50, 75, 255};
+    SDL_Color titleBgBot = {35, 40, 60, 255};
+    renderer.drawGradientRect(0, 0, WINDOW_WIDTH, 100, titleBgTop, titleBgBot);
+
+    // Title bar accent line
+    SDL_Color accentLine = {255, 180, 80, 180};
+    renderer.drawRect(0, 98, WINDOW_WIDTH, 2, accentLine, true);
+
     // Title
     SDL_Color titleColor = {255, 200, 50, 255};
-    renderer.drawTextShadow("SELECT STAGE", WINDOW_WIDTH / 2.0f, 40,
+    renderer.drawTextShadow("SELECT STAGE", WINDOW_WIDTH / 2.0f, 25,
                            renderer.getFontMedium(), titleColor, TextAlign::Center);
 
-    // Who's selecting
+    // Who's selecting - with glowing player color indicator
     SDL_Color selectingColor = Renderer::getPlayerColor(selectingPlayerColor);
+    SDL_Color selectingGlow = {
+        static_cast<Uint8>(selectingColor.r / 3),
+        static_cast<Uint8>(selectingColor.g / 3),
+        static_cast<Uint8>(selectingColor.b / 3), 100};
+    renderer.drawRect(WINDOW_WIDTH / 2.0f - 120, 60, 240, 30, selectingGlow, true);
     renderer.drawText("Player " + std::to_string(selectingPlayer + 1) + " is selecting",
-                     WINDOW_WIDTH / 2.0f, 80,
+                     WINDOW_WIDTH / 2.0f, 66,
                      renderer.getFontSmall(), selectingColor, TextAlign::Center);
 
     // Stage grid
@@ -513,12 +549,12 @@ void StageSelectScreen::render() {
     int cols = 2;
     int rows = (stageCount + cols - 1) / cols;
 
-    float gridWidth = 400.0f;
-    float gridHeight = 300.0f;
+    float gridWidth = 420.0f;
+    float gridHeight = 280.0f;
     float cellWidth = gridWidth / cols;
     float cellHeight = gridHeight / rows;
     float gridX = (WINDOW_WIDTH - gridWidth) / 2.0f;
-    float gridY = 150.0f;
+    float gridY = 120.0f;
 
     for (int i = 0; i < stageCount; ++i) {
         const auto& stage = stageReg.getStage(i);
@@ -529,43 +565,90 @@ void StageSelectScreen::render() {
         float y = gridY + row * cellHeight;
 
         bool selected = (i == selection);
-        SDL_Color bgColor = selected ?
-            SDL_Color{80, 80, 120, 255} : SDL_Color{50, 50, 60, 255};
 
-        renderer.drawRect(x + 5, y + 5, cellWidth - 10, cellHeight - 10, bgColor, true);
-
+        // Card background with gradient
         if (selected) {
-            SDL_Color borderColor = {255, 200, 50, 255};
-            renderer.drawRectOutline(x + 5, y + 5, cellWidth - 10, cellHeight - 10, borderColor, 3);
+            // Glowing selected card
+            SDL_Color glowColor = {255, 200, 50, 60};
+            renderer.drawRect(x + 2, y + 2, cellWidth - 4, cellHeight - 4, glowColor, true);
+
+            SDL_Color cardTop = {70, 75, 110, 255};
+            SDL_Color cardBot = {55, 60, 95, 255};
+            renderer.drawGradientRect(x + 8, y + 8, cellWidth - 16, cellHeight - 16, cardTop, cardBot);
+
+            // Animated border
+            float pulse = 0.7f + 0.3f * std::sin(previewTimer * 4.0f);
+            SDL_Color borderColor = {
+                static_cast<Uint8>(255 * pulse),
+                static_cast<Uint8>(200 * pulse),
+                static_cast<Uint8>(50), 255};
+            renderer.drawRectOutline(x + 8, y + 8, cellWidth - 16, cellHeight - 16, borderColor, 3);
+        } else {
+            // Unselected card
+            SDL_Color cardTop = {45, 48, 65, 255};
+            SDL_Color cardBot = {35, 38, 55, 255};
+            renderer.drawGradientRect(x + 8, y + 8, cellWidth - 16, cellHeight - 16, cardTop, cardBot);
+
+            SDL_Color borderColor = {60, 65, 80, 255};
+            renderer.drawRectOutline(x + 8, y + 8, cellWidth - 16, cellHeight - 16, borderColor, 1);
         }
+
+        // Mini stage preview in card
+        float miniScale = 0.3f;
+        float miniW = stage.width * miniScale;
+        float miniH = stage.height * miniScale;
+        float miniX = x + (cellWidth - miniW) / 2;
+        float miniY = y + 20;
+        renderer.drawRect(miniX, miniY, miniW, miniH, stage.backgroundColor, true);
+        renderer.drawRectOutline(miniX, miniY, miniW, miniH, stage.wallColor, 2);
 
         // Stage name
         SDL_Color textColor = selected ?
-            SDL_Color{255, 255, 255, 255} : SDL_Color{180, 180, 180, 255};
-        renderer.drawText(stage.name, x + cellWidth / 2, y + cellHeight / 2 - 10,
+            SDL_Color{255, 255, 255, 255} : SDL_Color{160, 165, 180, 255};
+        renderer.drawText(stage.name, x + cellWidth / 2, y + cellHeight - 30,
                          renderer.getFontSmall(), textColor, TextAlign::Center);
     }
 
-    // Stage preview
+    // Stage preview panel
     const auto& selectedStage = stageReg.getStage(selection);
-    float previewX = (WINDOW_WIDTH - 200) / 2.0f;
-    float previewY = 480.0f;
-    float scale = 200.0f / std::max(selectedStage.width, selectedStage.height);
+    float previewPanelX = (WINDOW_WIDTH - 280) / 2.0f;
+    float previewPanelY = 420.0f;
+    float previewPanelW = 280.0f;
+    float previewPanelH = 160.0f;
 
-    renderer.drawRect(previewX, previewY, selectedStage.width * scale,
-                     selectedStage.height * scale, selectedStage.backgroundColor, true);
-    renderer.drawRectOutline(previewX, previewY, selectedStage.width * scale,
-                            selectedStage.height * scale, selectedStage.wallColor, 4);
+    // Panel background with glow
+    SDL_Color panelGlow = {40, 45, 70, 150};
+    renderer.drawRect(previewPanelX - 5, previewPanelY - 5, previewPanelW + 10, previewPanelH + 10, panelGlow, true);
 
-    // Description
-    SDL_Color descColor = {150, 150, 160, 255};
-    renderer.drawText(selectedStage.description, WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 60,
+    SDL_Color panelTop = {35, 38, 55, 255};
+    SDL_Color panelBot = {28, 30, 45, 255};
+    renderer.drawGradientRect(previewPanelX, previewPanelY, previewPanelW, previewPanelH, panelTop, panelBot);
+
+    SDL_Color panelBorder = {70, 75, 100, 255};
+    renderer.drawRectOutline(previewPanelX, previewPanelY, previewPanelW, previewPanelH, panelBorder, 2);
+
+    // Stage preview inside panel
+    float scale = 180.0f / std::max(selectedStage.width, selectedStage.height);
+    float previewW = selectedStage.width * scale;
+    float previewH = selectedStage.height * scale;
+    float previewX = previewPanelX + (previewPanelW - previewW) / 2;
+    float previewY = previewPanelY + 10;
+
+    renderer.drawRect(previewX, previewY, previewW, previewH, selectedStage.backgroundColor, true);
+    renderer.drawRectOutline(previewX, previewY, previewW, previewH, selectedStage.wallColor, 3);
+
+    // Description below preview
+    SDL_Color descColor = {180, 185, 200, 255};
+    renderer.drawText(selectedStage.description, WINDOW_WIDTH / 2.0f, previewPanelY + previewPanelH - 20,
                      renderer.getFontSmall(), descColor, TextAlign::Center);
 
-    // Controls
-    SDL_Color hintColor = {120, 120, 130, 255};
+    // Controls hint bar at bottom
+    SDL_Color hintBg = {0, 0, 0, 120};
+    renderer.drawRect(0, WINDOW_HEIGHT - 35, WINDOW_WIDTH, 35, hintBg, true);
+
+    SDL_Color hintColor = {150, 150, 160, 255};
     renderer.drawText("A: Confirm   B: Back",
-                     WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 30,
+                     WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 22,
                      renderer.getFontSmall(), hintColor, TextAlign::Center);
 }
 
@@ -627,7 +710,10 @@ void GameSetupScreen::renderStatsDisplay(const BotStats& stats, float x, float y
     renderer.drawRect(x - 5, y - 5, width + 10, 4 * barSpacing + 10, panelBg, true);
 
     // Border accent
-    SDL_Color borderColor = {playerColor.r / 2, playerColor.g / 2, playerColor.b / 2, 200};
+    SDL_Color borderColor = {
+        static_cast<Uint8>(playerColor.r / 2),
+        static_cast<Uint8>(playerColor.g / 2),
+        static_cast<Uint8>(playerColor.b / 2), 200};
     renderer.drawRectOutline(x - 5, y - 5, width + 10, 4 * barSpacing + 10, borderColor, 2.0f);
 
     for (int i = 0; i < 4; ++i) {
