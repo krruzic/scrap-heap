@@ -10,12 +10,23 @@ namespace ScrapHeap {
 struct Bot;
 struct BattleState;
 
+// Frame shape types for rendering
+enum class FrameShape {
+    Square,     // Standard square bot
+    Rectangle,  // Wide rectangle
+    Triangle,   // Wedge/dart shape
+    Circle,     // Round disc
+    Diamond,    // Diamond/rhombus
+    Hexagon     // Six-sided
+};
+
 // Frame definition - defines bot body
 struct FrameDef {
     std::string name;
     float weight;
     float armor;      // Damage multiplier (1.0 = normal, higher = more resistant)
     float radius;
+    FrameShape shape;
     std::string description;
 };
 

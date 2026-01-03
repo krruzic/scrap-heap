@@ -16,15 +16,20 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
         return;
     }
 
-    // Skip movement if grabbed (can only rotate slowly)
+    // Skip movement if grabbed (can wiggle slightly)
     if (bot.grabState == GrabState::Grabbed) {
-        // Slow rotation only
-        float turnRate = bot.turnSpeed * 0.2f;
-        if (bot.inputLeft) bot.angularVel -= turnRate * dt * 60.0f;
-        if (bot.inputRight) bot.angularVel += turnRate * dt * 60.0f;
-        bot.angularVel *= ANGULAR_FRICTION;
-        bot.angle += bot.angularVel * dt;
-        bot.angle = normalizeAngle(bot.angle);
+        // Very limited movement when grabbed
+        float moveX = 0.0f, moveY = 0.0f;
+        if (bot.inputLeft) moveX -= 1.0f;
+        if (bot.inputRight) moveX += 1.0f;
+        if (bot.inputForward) moveY -= 1.0f;
+        if (bot.inputBack) moveY += 1.0f;
+
+        float wiggleSpeed = bot.acceleration * 0.1f;
+        bot.velX += moveX * wiggleSpeed * dt;
+        bot.velY += moveY * wiggleSpeed * dt;
+        bot.velX *= 0.8f;
+        bot.velY *= 0.8f;
         return;
     }
 
@@ -33,7 +38,6 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
     // Calculate effective stats with modifiers
     float effectiveMaxSpeed = bot.maxSpeed;
     float effectiveAccel = bot.acceleration;
-    float effectiveTurnSpeed = bot.turnSpeed;
 
     // Speed boost powerup
     if (bot.speedBoostTimer > 0) {
@@ -45,12 +49,12 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
     if (bot.berserkActive) {
         effectiveMaxSpeed *= 1.5f;
         effectiveAccel *= 1.5f;
-        effectiveTurnSpeed *= 0.5f;
     }
 
     // Boost special
     if (bot.boostActive) {
         effectiveAccel *= 1.5f;
+        effectiveMaxSpeed *= 1.2f;
     }
 
     // Reduced speed while grabbing
@@ -59,40 +63,50 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
         effectiveAccel *= 0.5f;
     }
 
-    // Rotation
-    if (bot.inputLeft) {
-        bot.angularVel -= effectiveTurnSpeed * dt * 60.0f;
+    // === STANDARD ARCADE MOVEMENT ===
+    // Get input direction (8-directional or analog)
+    float inputX = 0.0f, inputY = 0.0f;
+
+    // Digital input
+    if (bot.inputLeft) inputX -= 1.0f;
+    if (bot.inputRight) inputX += 1.0f;
+    if (bot.inputForward) inputY -= 1.0f;  // Up is negative Y
+    if (bot.inputBack) inputY += 1.0f;
+
+    // Analog stick overrides if significant
+    if (std::abs(bot.stickX) > 0.2f || std::abs(bot.stickY) > 0.2f) {
+        inputX = bot.stickX;
+        inputY = bot.stickY;
     }
-    if (bot.inputRight) {
-        bot.angularVel += effectiveTurnSpeed * dt * 60.0f;
+
+    // Normalize diagonal movement
+    float inputMag = std::sqrt(inputX * inputX + inputY * inputY);
+    if (inputMag > 1.0f) {
+        inputX /= inputMag;
+        inputY /= inputMag;
+        inputMag = 1.0f;
     }
 
-    // Apply angular friction
-    bot.angularVel *= std::pow(ANGULAR_FRICTION, dt * 60.0f);
-    bot.angle += bot.angularVel * dt;
-    bot.angle = normalizeAngle(bot.angle);
+    // Apply acceleration in input direction
+    if (inputMag > 0.1f) {
+        bot.velX += inputX * effectiveAccel * dt;
+        bot.velY += inputY * effectiveAccel * dt;
 
-    // Get facing direction
-    Vec2 facing = bot.getFacingVector();
+        // Rotate to face movement direction (smooth turning)
+        float targetAngle = std::atan2(inputY, inputX);
+        float angleDiff = normalizeAngle(targetAngle - bot.angle);
 
-    // Apply thrust
-    float thrust = 0.0f;
-    if (bot.inputForward) thrust = effectiveAccel;
-    if (bot.inputBack) thrust = -effectiveAccel * 0.5f;  // Reverse is slower
-
-    // Omni-drive can strafe
-    if (engine.omniDrive) {
-        Vec2 strafe(-facing.y, facing.x);
-        if (bot.stickX != 0.0f || bot.stickY != 0.0f) {
-            // Use analog stick for omni movement
-            bot.velX += bot.stickX * effectiveAccel * dt;
-            bot.velY += bot.stickY * effectiveAccel * dt;
+        // Torque affects turn speed
+        float turnRate = engine.torque / 150.0f * 8.0f;  // Faster turning
+        if (std::abs(angleDiff) < turnRate * dt) {
+            bot.angle = targetAngle;
+        } else if (angleDiff > 0) {
+            bot.angle += turnRate * dt;
+        } else {
+            bot.angle -= turnRate * dt;
         }
+        bot.angle = normalizeAngle(bot.angle);
     }
-
-    // Apply thrust in facing direction
-    bot.velX += facing.x * thrust * dt;
-    bot.velY += facing.y * thrust * dt;
 
     // Clamp to max speed
     float speed = std::sqrt(bot.velX * bot.velX + bot.velY * bot.velY);

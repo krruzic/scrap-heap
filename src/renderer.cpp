@@ -35,14 +35,33 @@ bool Renderer::initialize(SDL_Renderer* renderer, const std::string& fontPath) {
         return false;
     }
 
-    // Load fonts at different sizes
-    fontLarge = TTF_OpenFont(fontPath.c_str(), 48);
-    fontMedium = TTF_OpenFont(fontPath.c_str(), 32);
-    fontSmall = TTF_OpenFont(fontPath.c_str(), 20);
+    // Try to load pixel art font first (Press Start 2P)
+    const char* pixelFonts[] = {
+        "assets/PressStart2P-Regular.ttf",
+        "../assets/PressStart2P-Regular.ttf",
+        "./assets/PressStart2P-Regular.ttf"
+    };
 
+    for (const char* pixelFont : pixelFonts) {
+        if (!fontLarge) fontLarge = TTF_OpenFont(pixelFont, 24);
+        if (!fontMedium) fontMedium = TTF_OpenFont(pixelFont, 16);
+        if (!fontSmall) fontSmall = TTF_OpenFont(pixelFont, 8);
+        if (fontLarge && fontMedium && fontSmall) {
+            SDL_Log("Loaded pixel font: %s", pixelFont);
+            break;
+        }
+    }
+
+    // Try specified font path
     if (!fontLarge || !fontMedium || !fontSmall) {
-        SDL_Log("Failed to load font: %s", SDL_GetError());
-        // Try system fonts as fallback
+        if (!fontLarge) fontLarge = TTF_OpenFont(fontPath.c_str(), 24);
+        if (!fontMedium) fontMedium = TTF_OpenFont(fontPath.c_str(), 16);
+        if (!fontSmall) fontSmall = TTF_OpenFont(fontPath.c_str(), 8);
+    }
+
+    // Fall back to system fonts
+    if (!fontLarge || !fontMedium || !fontSmall) {
+        SDL_Log("Failed to load pixel font, trying fallbacks");
         const char* fallbackFonts[] = {
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/TTF/DejaVuSans.ttf",
@@ -52,9 +71,9 @@ bool Renderer::initialize(SDL_Renderer* renderer, const std::string& fontPath) {
         };
 
         for (const char* fallback : fallbackFonts) {
-            if (!fontLarge) fontLarge = TTF_OpenFont(fallback, 48);
-            if (!fontMedium) fontMedium = TTF_OpenFont(fallback, 32);
-            if (!fontSmall) fontSmall = TTF_OpenFont(fallback, 20);
+            if (!fontLarge) fontLarge = TTF_OpenFont(fallback, 24);
+            if (!fontMedium) fontMedium = TTF_OpenFont(fallback, 16);
+            if (!fontSmall) fontSmall = TTF_OpenFont(fallback, 12);
             if (fontLarge && fontMedium && fontSmall) break;
         }
     }
@@ -398,52 +417,215 @@ void Renderer::drawGlowPanel(float x, float y, float w, float h,
     drawRectOutline(x, y, w, h, borderColor, 2.0f);
 }
 
+void Renderer::drawHexagon(float cx, float cy, float radius, float angle, SDL_Color color, bool filled) {
+    SDL_Vertex vertices[7];  // 6 corners + center for fan
+    SDL_FColor fcolor = {
+        color.r / 255.0f, color.g / 255.0f,
+        color.b / 255.0f, color.a / 255.0f
+    };
+
+    // Center vertex
+    vertices[0].position = {cx, cy};
+    vertices[0].color = fcolor;
+
+    // 6 corners
+    for (int i = 0; i < 6; ++i) {
+        float cornerAngle = angle + (i / 6.0f) * 2.0f * PI;
+        vertices[i + 1].position = {
+            cx + std::cos(cornerAngle) * radius,
+            cy + std::sin(cornerAngle) * radius
+        };
+        vertices[i + 1].color = fcolor;
+    }
+
+    if (filled) {
+        int indices[18];
+        for (int i = 0; i < 6; ++i) {
+            indices[i * 3] = 0;
+            indices[i * 3 + 1] = i + 1;
+            indices[i * 3 + 2] = (i + 1) % 6 + 1;
+        }
+        SDL_RenderGeometry(sdlRenderer, nullptr, vertices, 7, indices, 18);
+    } else {
+        SDL_SetRenderDrawColor(sdlRenderer, color.r, color.g, color.b, color.a);
+        for (int i = 0; i < 6; ++i) {
+            int next = (i + 1) % 6;
+            SDL_RenderLine(sdlRenderer,
+                vertices[i + 1].position.x, vertices[i + 1].position.y,
+                vertices[next + 1].position.x, vertices[next + 1].position.y);
+        }
+    }
+}
+
+void Renderer::drawDiamond(float cx, float cy, float width, float height, float angle, SDL_Color color) {
+    float cos_a = std::cos(angle);
+    float sin_a = std::sin(angle);
+    float hw = width / 2.0f;
+    float hh = height / 2.0f;
+
+    // Diamond corners (top, right, bottom, left before rotation)
+    float corners[4][2] = {
+        {0, -hh}, {hw, 0}, {0, hh}, {-hw, 0}
+    };
+
+    SDL_Vertex vertices[4];
+    SDL_FColor fcolor = {
+        color.r / 255.0f, color.g / 255.0f,
+        color.b / 255.0f, color.a / 255.0f
+    };
+
+    for (int i = 0; i < 4; ++i) {
+        float rx = corners[i][0] * cos_a - corners[i][1] * sin_a;
+        float ry = corners[i][0] * sin_a + corners[i][1] * cos_a;
+        vertices[i].position = {cx + rx, cy + ry};
+        vertices[i].color = fcolor;
+    }
+
+    int indices[6] = {0, 1, 2, 0, 2, 3};
+    SDL_RenderGeometry(sdlRenderer, nullptr, vertices, 4, indices, 6);
+}
+
 void Renderer::drawBot(const Bot& bot, SDL_Color color) {
-    // Draw body
-    drawRotatedRect(bot.x, bot.y, bot.radius * 1.8f, bot.radius * 1.4f,
-                    bot.angle, color);
-
-    // Draw front indicator (triangle pointing forward)
+    const auto& frame = ComponentRegistry::instance().getFrame(bot.frameIndex);
     Vec2 facing = bot.getFacingVector();
-    float frontX = bot.x + facing.x * bot.radius * 0.9f;
-    float frontY = bot.y + facing.y * bot.radius * 0.9f;
 
-    Vec2 perpendicular(-facing.y, facing.x);
-    float triSize = bot.radius * 0.3f;
+    // Draw shadow
+    SDL_Color shadowColor = {0, 0, 0, 80};
+    float shadowOffset = 4.0f;
 
-    SDL_Color frontColor = {
-        static_cast<Uint8>(std::min(255, color.r + 50)),
-        static_cast<Uint8>(std::min(255, color.g + 50)),
-        static_cast<Uint8>(std::min(255, color.b + 50)),
+    // Draw body based on frame shape
+    SDL_Color darkColor = {
+        static_cast<Uint8>(color.r * 0.6f),
+        static_cast<Uint8>(color.g * 0.6f),
+        static_cast<Uint8>(color.b * 0.6f),
+        255
+    };
+    SDL_Color lightColor = {
+        static_cast<Uint8>(std::min(255, color.r + 40)),
+        static_cast<Uint8>(std::min(255, color.g + 40)),
+        static_cast<Uint8>(std::min(255, color.b + 40)),
         255
     };
 
-    drawTriangle(
-        frontX + facing.x * triSize, frontY + facing.y * triSize,
-        frontX - perpendicular.x * triSize, frontY - perpendicular.y * triSize,
-        frontX + perpendicular.x * triSize, frontY + perpendicular.y * triSize,
-        frontColor, true
-    );
+    switch (frame.shape) {
+        case FrameShape::Square: {
+            // Square bot with beveled look
+            float size = bot.radius * 1.6f;
+            drawRotatedRect(bot.x + shadowOffset, bot.y + shadowOffset, size, size, bot.angle, shadowColor);
+            drawRotatedRect(bot.x, bot.y, size, size, bot.angle, color);
+            // Inner highlight
+            drawRotatedRect(bot.x, bot.y, size * 0.7f, size * 0.7f, bot.angle, lightColor);
+            break;
+        }
+        case FrameShape::Rectangle: {
+            // Wide rectangle (tank)
+            float w = bot.radius * 2.2f;
+            float h = bot.radius * 1.4f;
+            drawRotatedRect(bot.x + shadowOffset, bot.y + shadowOffset, w, h, bot.angle, shadowColor);
+            drawRotatedRect(bot.x, bot.y, w, h, bot.angle, color);
+            // Track marks
+            Vec2 perp(-facing.y, facing.x);
+            drawRotatedRect(bot.x + perp.x * h * 0.3f, bot.y + perp.y * h * 0.3f,
+                           w * 0.9f, h * 0.2f, bot.angle, darkColor);
+            drawRotatedRect(bot.x - perp.x * h * 0.3f, bot.y - perp.y * h * 0.3f,
+                           w * 0.9f, h * 0.2f, bot.angle, darkColor);
+            break;
+        }
+        case FrameShape::Triangle: {
+            // Wedge/dart shape - aggressive pointed front
+            float size = bot.radius * 1.8f;
+            Vec2 perp(-facing.y, facing.x);
+            float frontX = bot.x + facing.x * size * 0.6f;
+            float frontY = bot.y + facing.y * size * 0.6f;
+            float backX = bot.x - facing.x * size * 0.4f;
+            float backY = bot.y - facing.y * size * 0.4f;
+
+            // Shadow
+            drawTriangle(frontX + shadowOffset, frontY + shadowOffset,
+                        backX - perp.x * size * 0.5f + shadowOffset, backY - perp.y * size * 0.5f + shadowOffset,
+                        backX + perp.x * size * 0.5f + shadowOffset, backY + perp.y * size * 0.5f + shadowOffset,
+                        shadowColor, true);
+            // Main body
+            drawTriangle(frontX, frontY,
+                        backX - perp.x * size * 0.5f, backY - perp.y * size * 0.5f,
+                        backX + perp.x * size * 0.5f, backY + perp.y * size * 0.5f,
+                        color, true);
+            // Cockpit
+            drawTriangle(bot.x + facing.x * size * 0.1f, bot.y + facing.y * size * 0.1f,
+                        bot.x - perp.x * size * 0.2f, bot.y - perp.y * size * 0.2f,
+                        bot.x + perp.x * size * 0.2f, bot.y + perp.y * size * 0.2f,
+                        lightColor, true);
+            break;
+        }
+        case FrameShape::Circle: {
+            // Round disc
+            drawFilledCircle(bot.x + shadowOffset, bot.y + shadowOffset, bot.radius, shadowColor);
+            drawFilledCircle(bot.x, bot.y, bot.radius, color);
+            drawFilledCircle(bot.x - 2, bot.y - 2, bot.radius * 0.5f, lightColor);
+            break;
+        }
+        case FrameShape::Diamond: {
+            // Small diamond shape
+            float size = bot.radius * 1.5f;
+            drawDiamond(bot.x + shadowOffset, bot.y + shadowOffset, size, size * 1.3f, bot.angle, shadowColor);
+            drawDiamond(bot.x, bot.y, size, size * 1.3f, bot.angle, color);
+            drawDiamond(bot.x, bot.y, size * 0.4f, size * 0.5f, bot.angle, lightColor);
+            break;
+        }
+        case FrameShape::Hexagon: {
+            // Hexagonal frame
+            drawHexagon(bot.x + shadowOffset, bot.y + shadowOffset, bot.radius, bot.angle, shadowColor, true);
+            drawHexagon(bot.x, bot.y, bot.radius, bot.angle, color, true);
+            drawHexagon(bot.x, bot.y, bot.radius * 0.5f, bot.angle + PI / 6.0f, lightColor, true);
+            break;
+        }
+    }
+
+    // Draw front direction indicator
+    float indicatorDist = bot.radius * 0.8f;
+    float indicatorX = bot.x + facing.x * indicatorDist;
+    float indicatorY = bot.y + facing.y * indicatorDist;
+    SDL_Color indicatorColor = {255, 255, 255, 200};
+    drawFilledCircle(indicatorX, indicatorY, 4.0f, indicatorColor);
 
     // Draw weapon
     drawBotWeapon(bot, color);
 
     // Draw grabbed indicator
     if (bot.grabState == GrabState::Grabbed) {
-        SDL_Color tint = {255, 100, 100, 128};
-        drawCircle(bot.x, bot.y, bot.radius + 5, tint, false);
+        SDL_Color tint = {255, 100, 100, 180};
+        for (int i = 0; i < 4; ++i) {
+            float angle = (i / 4.0f) * 2.0f * PI + bot.angle;
+            float px = bot.x + std::cos(angle) * (bot.radius + 8);
+            float py = bot.y + std::sin(angle) * (bot.radius + 8);
+            drawFilledCircle(px, py, 5.0f, tint);
+        }
     }
 
     // Draw shield effect
     if (bot.shieldActive) {
-        SDL_Color shield = {100, 150, 255, 150};
-        drawCircle(bot.x, bot.y, bot.radius + 8, shield, false);
+        SDL_Color shield = {100, 180, 255, 150};
+        drawCircleOutline(bot.x, bot.y, bot.radius + 10, shield, 3.0f);
+        drawCircleOutline(bot.x, bot.y, bot.radius + 6, shield, 2.0f);
     }
 
     // Draw anchor effect
     if (bot.anchorActive) {
-        SDL_Color anchor = {150, 150, 150, 200};
-        drawCircle(bot.x, bot.y, bot.radius + 3, anchor, false);
+        SDL_Color anchor = {200, 200, 200, 220};
+        drawRect(bot.x - bot.radius - 5, bot.y - 3, bot.radius * 2 + 10, 6, anchor, true);
+        drawRect(bot.x - 3, bot.y - bot.radius - 5, 6, bot.radius * 2 + 10, anchor, true);
+    }
+
+    // Draw berserk effect
+    if (bot.berserkActive) {
+        SDL_Color berserk = {255, 50, 50, 150};
+        drawCircleOutline(bot.x, bot.y, bot.radius + 5, berserk, 2.0f);
+    }
+
+    // Draw overdrive effect
+    if (bot.overdriveActive) {
+        SDL_Color overdrive = {255, 200, 50, 150};
+        drawCircleOutline(bot.x, bot.y, bot.radius + 7, overdrive, 2.0f);
     }
 }
 
@@ -527,11 +709,62 @@ void Renderer::drawProgressBar(float x, float y, float width, float height,
 }
 
 void Renderer::drawStage(const StageDef& stage, float offsetX, float offsetY) {
-    // Draw floor
+    // Draw floor with retro grid pattern
     drawRect(offsetX, offsetY, stage.width, stage.height, stage.backgroundColor, true);
 
-    // Draw walls
-    drawRectOutline(offsetX, offsetY, stage.width, stage.height, stage.wallColor, 8.0f);
+    // Draw grid lines for retro look
+    SDL_Color gridColor = {
+        static_cast<Uint8>(std::min(255, stage.backgroundColor.r + 15)),
+        static_cast<Uint8>(std::min(255, stage.backgroundColor.g + 15)),
+        static_cast<Uint8>(std::min(255, stage.backgroundColor.b + 15)),
+        100
+    };
+    float gridSize = 40.0f;
+    for (float x = gridSize; x < stage.width; x += gridSize) {
+        drawLine(offsetX + x, offsetY, offsetX + x, offsetY + stage.height, gridColor, 1.0f);
+    }
+    for (float y = gridSize; y < stage.height; y += gridSize) {
+        drawLine(offsetX, offsetY + y, offsetX + stage.width, offsetY + y, gridColor, 1.0f);
+    }
+
+    // Draw walls with chunky retro border
+    float wallThickness = 8.0f;
+    SDL_Color wallDark = {
+        static_cast<Uint8>(stage.wallColor.r * 0.6f),
+        static_cast<Uint8>(stage.wallColor.g * 0.6f),
+        static_cast<Uint8>(stage.wallColor.b * 0.6f),
+        255
+    };
+    SDL_Color wallLight = {
+        static_cast<Uint8>(std::min(255, stage.wallColor.r + 40)),
+        static_cast<Uint8>(std::min(255, stage.wallColor.g + 40)),
+        static_cast<Uint8>(std::min(255, stage.wallColor.b + 40)),
+        255
+    };
+
+    // Outer wall (dark)
+    drawRect(offsetX - wallThickness, offsetY - wallThickness,
+             stage.width + wallThickness * 2, wallThickness, wallDark, true);  // Top
+    drawRect(offsetX - wallThickness, offsetY + stage.height,
+             stage.width + wallThickness * 2, wallThickness, wallLight, true);  // Bottom
+    drawRect(offsetX - wallThickness, offsetY,
+             wallThickness, stage.height, wallDark, true);  // Left
+    drawRect(offsetX + stage.width, offsetY,
+             wallThickness, stage.height, wallLight, true);  // Right
+
+    // Inner wall highlight
+    drawRect(offsetX, offsetY, stage.width, 2, wallLight, true);  // Top inner
+    drawRect(offsetX, offsetY + stage.height - 2, stage.width, 2, wallDark, true);  // Bottom inner
+    drawRect(offsetX, offsetY, 2, stage.height, wallLight, true);  // Left inner
+    drawRect(offsetX + stage.width - 2, offsetY, 2, stage.height, wallDark, true);  // Right inner
+
+    // Corner accents
+    SDL_Color cornerColor = {255, 200, 50, 200};
+    float cornerSize = 12.0f;
+    drawRect(offsetX, offsetY, cornerSize, cornerSize, cornerColor, true);
+    drawRect(offsetX + stage.width - cornerSize, offsetY, cornerSize, cornerSize, cornerColor, true);
+    drawRect(offsetX, offsetY + stage.height - cornerSize, cornerSize, cornerSize, cornerColor, true);
+    drawRect(offsetX + stage.width - cornerSize, offsetY + stage.height - cornerSize, cornerSize, cornerSize, cornerColor, true);
 
     // Draw hazards
     for (const auto& hazard : stage.hazards) {

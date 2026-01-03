@@ -74,6 +74,14 @@ public:
     void drawRotatedRect(float cx, float cy, float width, float height,
                          float angle, SDL_Color color);
 
+    // Draw hexagon
+    void drawHexagon(float cx, float cy, float radius, float angle,
+                     SDL_Color color, bool filled = true);
+
+    // Draw diamond/rhombus
+    void drawDiamond(float cx, float cy, float width, float height,
+                     float angle, SDL_Color color);
+
     // Draw vertical gradient rectangle
     void drawGradientRect(float x, float y, float w, float h,
                           SDL_Color topColor, SDL_Color bottomColor);

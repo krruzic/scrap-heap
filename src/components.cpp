@@ -8,14 +8,14 @@ ComponentRegistry& ComponentRegistry::instance() {
 }
 
 void ComponentRegistry::initialize() {
-    // Initialize Frames
+    // Initialize Frames - name, weight, armor, radius, shape, description
     frames = {
-        {"Standard", 50.0f, 1.0f, 30.0f, "Balanced baseline"},
-        {"Brick", 80.0f, 1.3f, 35.0f, "Tank - slow but tough"},
-        {"Dart", 30.0f, 0.7f, 22.0f, "Glass cannon - fast but fragile"},
-        {"Disc", 50.0f, 1.0f, 28.0f, "Circular - no weak angles"},
-        {"Slab", 60.0f, 0.9f, 32.0f, "Wide - resists lateral knockback"},
-        {"Roach", 20.0f, 0.5f, 18.0f, "Tiny - hard to hit, easy to kill"}
+        {"Standard", 50.0f, 1.0f, 30.0f, FrameShape::Square, "Balanced baseline"},
+        {"Brick", 80.0f, 1.3f, 35.0f, FrameShape::Rectangle, "Tank - slow but tough"},
+        {"Dart", 30.0f, 0.7f, 22.0f, FrameShape::Triangle, "Glass cannon - fast but fragile"},
+        {"Disc", 50.0f, 1.0f, 28.0f, FrameShape::Circle, "Circular - no weak angles"},
+        {"Slab", 60.0f, 0.9f, 32.0f, FrameShape::Hexagon, "Hex - resists lateral knockback"},
+        {"Roach", 20.0f, 0.5f, 18.0f, FrameShape::Diamond, "Tiny - hard to hit, easy to kill"}
     };
 
     // Initialize Engines
