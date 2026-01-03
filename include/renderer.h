@@ -103,10 +103,10 @@ public:
                        SDL_Color baseColor, float glowIntensity = 0.5f);
 
     // Draw a bot
-    void drawBot(const Bot& bot, SDL_Color color);
+    void drawBot(const Bot& bot, SDL_Color color, float offsetX = 0, float offsetY = 0);
 
     // Draw bot's weapon visuals
-    void drawBotWeapon(const Bot& bot, SDL_Color color);
+    void drawBotWeapon(const Bot& bot, SDL_Color color, float offsetX = 0, float offsetY = 0);
 
     // Draw health bar
     void drawHealthBar(float x, float y, float width, float height,

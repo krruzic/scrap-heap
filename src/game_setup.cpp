@@ -296,42 +296,58 @@ void GameSetupScreen::update(float dt) {
 void GameSetupScreen::render() {
     auto& renderer = Renderer::instance();
 
-    // Gradient background
-    SDL_Color topColor = {18, 22, 38, 255};
-    SDL_Color bottomColor = {32, 28, 48, 255};
-    renderer.drawGradientRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, topColor, bottomColor);
+    // === RETRO GARAGE STYLE ===
 
-    // Title bar with gradient
-    SDL_Color titleBgTop = {45, 50, 75, 255};
-    SDL_Color titleBgBot = {35, 40, 60, 255};
-    renderer.drawGradientRect(0, 0, WINDOW_WIDTH, 70, titleBgTop, titleBgBot);
+    // Dark concrete floor background
+    SDL_Color floorColor = {30, 28, 32, 255};
+    renderer.drawRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, floorColor, true);
 
-    // Title bar accent line
-    SDL_Color accentLine = {255, 180, 80, 180};
-    renderer.drawRect(0, 68, WINDOW_WIDTH, 2, accentLine, true);
+    // Floor grid pattern (like garage tiles)
+    SDL_Color gridColor = {40, 38, 44, 255};
+    float tileSize = 32.0f;
+    for (float x = 0; x < WINDOW_WIDTH; x += tileSize) {
+        renderer.drawLine(x, 0, x, WINDOW_HEIGHT, gridColor, 1.0f);
+    }
+    for (float y = 0; y < WINDOW_HEIGHT; y += tileSize) {
+        renderer.drawLine(0, y, WINDOW_WIDTH, y, gridColor, 1.0f);
+    }
+
+    // Title banner - industrial style
+    SDL_Color bannerBg = {20, 18, 24, 255};
+    SDL_Color bannerBorder = {255, 200, 50, 255};
+    renderer.drawRect(0, 0, WINDOW_WIDTH, 50, bannerBg, true);
+    renderer.drawRect(0, 48, WINDOW_WIDTH, 4, bannerBorder, true);
+
+    // Hazard stripes on banner
+    SDL_Color hazardYellow = {255, 200, 50, 255};
+    SDL_Color hazardBlack = {20, 18, 24, 255};
+    for (float x = 0; x < WINDOW_WIDTH; x += 40) {
+        renderer.drawRect(x, 0, 20, 6, hazardYellow, true);
+    }
 
     // Title
-    SDL_Color titleColor = {255, 200, 50, 255};
-    renderer.drawTextShadow("SELECT YOUR BOT", WINDOW_WIDTH / 2.0f, 20,
-                           renderer.getFontMedium(), titleColor, TextAlign::Center);
+    SDL_Color titleColor = {255, 220, 80, 255};
+    renderer.drawText("BUILD YOUR BOT", WINDOW_WIDTH / 2.0f, 18,
+                     renderer.getFontMedium(), titleColor, TextAlign::Center);
 
-    // Render 4 quadrants
+    // Render 4 garage bays (quadrants)
     float quadWidth = WINDOW_WIDTH / 2.0f;
-    float quadHeight = (WINDOW_HEIGHT - 105) / 2.0f;
+    float quadHeight = (WINDOW_HEIGHT - 85) / 2.0f;
 
     for (int i = 0; i < 4; ++i) {
         float x = (i % 2) * quadWidth;
-        float y = 75 + (i / 2) * quadHeight;
+        float y = 55 + (i / 2) * quadHeight;
         renderSlot(i, x, y, quadWidth, quadHeight);
     }
 
-    // Controls hint bar
-    SDL_Color hintBg = {0, 0, 0, 120};
-    renderer.drawRect(0, WINDOW_HEIGHT - 30, WINDOW_WIDTH, 30, hintBg, true);
+    // Controls hint bar - industrial
+    SDL_Color hintBg = {15, 13, 18, 240};
+    renderer.drawRect(0, WINDOW_HEIGHT - 28, WINDOW_WIDTH, 28, hintBg, true);
+    renderer.drawRect(0, WINDOW_HEIGHT - 28, WINDOW_WIDTH, 2, {60, 60, 70, 255}, true);
 
-    SDL_Color hintColor = {150, 150, 160, 255};
-    renderer.drawText("A: Join/Select   B: Back/Leave   D-PAD: Navigate",
-                     WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 20,
+    SDL_Color hintColor = {140, 140, 150, 255};
+    renderer.drawText("A:JOIN  B:LEAVE  DPAD:SELECT",
+                     WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 18,
                      renderer.getFontSmall(), hintColor, TextAlign::Center);
 }
 
@@ -339,56 +355,117 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
     auto& renderer = Renderer::instance();
     const PlayerSlot& slot = slots[slotIndex];
 
-    // Border
-    SDL_Color borderColor = {80, 80, 90, 255};
-    renderer.drawRectOutline(x + 5, y + 5, width - 10, height - 10, borderColor, 2);
+    // Get player color (used for garage bay tint)
+    SDL_Color playerColor = Renderer::getPlayerColor(slot.colorIndex);
+    SDL_Color darkPlayerColor = {
+        static_cast<Uint8>(playerColor.r * 0.15f),
+        static_cast<Uint8>(playerColor.g * 0.15f),
+        static_cast<Uint8>(playerColor.b * 0.15f),
+        255
+    };
+
+    // === GARAGE BAY BACKGROUND ===
+    float padding = 4.0f;
+    float bayX = x + padding;
+    float bayY = y + padding;
+    float bayW = width - padding * 2;
+    float bayH = height - padding * 2;
+
+    // Garage bay floor (darker)
+    SDL_Color bayFloor = (slot.state == PlayerSlotState::Empty) ?
+        SDL_Color{22, 20, 26, 255} : darkPlayerColor;
+    renderer.drawRect(bayX, bayY, bayW, bayH, bayFloor, true);
+
+    // Garage door frame (top bar with color)
+    SDL_Color frameColor = (slot.state == PlayerSlotState::Empty) ?
+        SDL_Color{50, 48, 55, 255} : playerColor;
+    renderer.drawRect(bayX, bayY, bayW, 6, frameColor, true);
+
+    // Side stripes (industrial look)
+    SDL_Color stripeColor = (slot.state == PlayerSlotState::Empty) ?
+        SDL_Color{40, 38, 44, 255} :
+        SDL_Color{
+            static_cast<Uint8>(playerColor.r * 0.4f),
+            static_cast<Uint8>(playerColor.g * 0.4f),
+            static_cast<Uint8>(playerColor.b * 0.4f),
+            255
+        };
+    renderer.drawRect(bayX, bayY + 6, 4, bayH - 6, stripeColor, true);
+    renderer.drawRect(bayX + bayW - 4, bayY + 6, 4, bayH - 6, stripeColor, true);
+
+    // Player number badge
+    char pNum[8];
+    snprintf(pNum, sizeof(pNum), "P%d", slotIndex + 1);
+    SDL_Color badgeColor = (slot.state == PlayerSlotState::Empty) ?
+        SDL_Color{60, 58, 65, 255} : playerColor;
+    renderer.drawRect(bayX + 8, bayY + 12, 28, 18, badgeColor, true);
+    renderer.drawText(pNum, bayX + 22, bayY + 14,
+                     renderer.getFontSmall(), {0, 0, 0, 255}, TextAlign::Center);
 
     float centerX = x + width / 2.0f;
-    float contentY = y + 20;
 
     if (slot.state == PlayerSlotState::Empty) {
-        SDL_Color textColor = {150, 150, 160, 255};
-        renderer.drawText("Press A to join", centerX, y + height / 2.0f - 15,
-                         renderer.getFontMedium(), textColor, TextAlign::Center);
+        // Empty bay - waiting for player
+        SDL_Color textColor = {100, 100, 110, 255};
+        renderer.drawText("PRESS A", centerX, y + height / 2.0f - 8,
+                         renderer.getFontSmall(), textColor, TextAlign::Center);
+        renderer.drawText("TO JOIN", centerX, y + height / 2.0f + 8,
+                         renderer.getFontSmall(), textColor, TextAlign::Center);
         return;
     }
-
-    SDL_Color playerColor = Renderer::getPlayerColor(slot.colorIndex);
 
     if (slot.state == PlayerSlotState::Ready) {
-        // Show bot preview and stats when ready
-        renderBotPreview(slot, centerX, y + height * 0.35f, 60.0f);
+        // Ready state - show bot in garage with READY banner
+        renderBotPreview(slot, centerX, y + height * 0.4f, 55.0f);
 
-        renderer.drawTextShadow("READY", centerX, y + height * 0.65f,
-                               renderer.getFontMedium(), playerColor, TextAlign::Center);
-        renderer.drawText(slot.getDisplayName(slotIndex), centerX, y + height * 0.75f,
+        // Ready banner
+        SDL_Color readyBg = {20, 60, 20, 255};
+        SDL_Color readyText = {100, 255, 100, 255};
+        renderer.drawRect(bayX + 10, y + height * 0.65f, bayW - 20, 22, readyBg, true);
+        renderer.drawText("READY!", centerX, y + height * 0.65f + 4,
+                         renderer.getFontSmall(), readyText, TextAlign::Center);
+
+        // Player name
+        renderer.drawText(slot.getDisplayName(slotIndex), centerX, y + height * 0.78f,
                          renderer.getFontSmall(), playerColor, TextAlign::Center);
 
-        // Show stats below
+        // Compact stats
         BotStats stats = calculateBotStats(slot);
-        renderStatsDisplay(stats, x + 15, y + height * 0.8f, width - 30, playerColor);
+        renderStatsDisplay(stats, x + 12, y + height * 0.85f, width - 24, playerColor);
         return;
     }
 
-    // Configuring state - split into left (options) and right (preview + stats)
+    // === CONFIGURING STATE ===
     auto& registry = ComponentRegistry::instance();
     const char* optionLabels[] = {"TAG", "ENGINE", "FRAME", "WEAPON", "SPECIAL", "COLOR", "OK"};
 
-    // Left side: options (narrower)
-    float optionsWidth = width * 0.55f;
-    float lineHeight = 24.0f;
-    float labelX = x + 15;
-    float valueX = x + optionsWidth - 10;
+    // Left side: options
+    float optionsWidth = width * 0.52f;
+    float lineHeight = 22.0f;
+    float labelX = bayX + 10;
+    float valueX = bayX + optionsWidth - 8;
+    float contentY = bayY + 32;
 
     for (int opt = 0; opt < static_cast<int>(ConfigOption::COUNT); ++opt) {
         bool selected = (slot.currentOption == static_cast<ConfigOption>(opt));
-        SDL_Color labelColor = selected ? SDL_Color{255, 255, 100, 255} : SDL_Color{180, 180, 180, 255};
-        SDL_Color valueColor = selected ? SDL_Color{255, 255, 255, 255} : SDL_Color{150, 150, 160, 255};
-
         float lineY = contentY + opt * lineHeight;
 
+        // Selection highlight bar
+        if (selected) {
+            SDL_Color highlightBg = {
+                static_cast<Uint8>(playerColor.r * 0.3f),
+                static_cast<Uint8>(playerColor.g * 0.3f),
+                static_cast<Uint8>(playerColor.b * 0.3f),
+                255
+            };
+            renderer.drawRect(labelX - 2, lineY - 1, optionsWidth - 8, lineHeight - 2, highlightBg, true);
+        }
+
+        SDL_Color labelColor = selected ? playerColor : SDL_Color{130, 130, 140, 255};
+        SDL_Color valueColor = selected ? SDL_Color{255, 255, 255, 255} : SDL_Color{100, 100, 110, 255};
+
         std::string label = optionLabels[opt];
-        if (selected) label = "> " + label;
+        if (selected) label = ">" + label;
 
         renderer.drawText(label, labelX, lineY, renderer.getFontSmall(), labelColor, TextAlign::Left);
 
@@ -396,41 +473,43 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
         switch (static_cast<ConfigOption>(opt)) {
             case ConfigOption::Tag: {
                 std::string tagName = slot.getDisplayName(slotIndex);
-                if (tagName.length() > 8) tagName = tagName.substr(0, 7) + "..";
-                value = "< " + tagName + " >";
+                if (tagName.length() > 6) tagName = tagName.substr(0, 5) + "..";
+                value = "<" + tagName + ">";
                 break;
             }
             case ConfigOption::Engine: {
                 std::string name = registry.getEngine(slot.engineIndex).name;
-                if (name.length() > 8) name = name.substr(0, 7) + "..";
-                value = "< " + name + " >";
+                if (name.length() > 6) name = name.substr(0, 5) + "..";
+                value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Frame: {
                 std::string name = registry.getFrame(slot.frameIndex).name;
-                if (name.length() > 8) name = name.substr(0, 7) + "..";
-                value = "< " + name + " >";
+                if (name.length() > 6) name = name.substr(0, 5) + "..";
+                value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Weapon: {
                 std::string name = registry.getWeapon(slot.weaponIndex).name;
-                if (name.length() > 8) name = name.substr(0, 7) + "..";
-                value = "< " + name + " >";
+                if (name.length() > 6) name = name.substr(0, 5) + "..";
+                value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Special: {
                 std::string name = registry.getSpecial(slot.specialIndex).name;
-                if (name.length() > 8) name = name.substr(0, 7) + "..";
-                value = "< " + name + " >";
+                if (name.length() > 6) name = name.substr(0, 5) + "..";
+                value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Color:
-                // Draw color swatch instead
-                renderer.drawRect(valueX - 45, lineY + 2, 40, 16, playerColor, true);
+                // Draw color swatch
+                renderer.drawRect(valueX - 35, lineY + 2, 30, 14, playerColor, true);
+                renderer.drawRectOutline(valueX - 35, lineY + 2, 30, 14, {80, 80, 90, 255}, 1.0f);
                 value = "";
                 break;
             case ConfigOption::OK:
-                value = "[READY]";
+                value = "[GO!]";
+                valueColor = selected ? SDL_Color{100, 255, 100, 255} : SDL_Color{80, 150, 80, 255};
                 break;
             default:
                 break;
@@ -441,17 +520,27 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
         }
     }
 
-    // Right side: bot preview and stats
-    float previewX = x + optionsWidth + (width - optionsWidth) / 2.0f;
-    float previewY = y + 70;
+    // Right side: bot preview in garage bay
+    float previewX = bayX + optionsWidth + (bayW - optionsWidth) / 2.0f;
+    float previewY = bayY + 65;
+
+    // Preview platform
+    SDL_Color platformColor = {
+        static_cast<Uint8>(playerColor.r * 0.25f),
+        static_cast<Uint8>(playerColor.g * 0.25f),
+        static_cast<Uint8>(playerColor.b * 0.25f),
+        255
+    };
+    float platW = bayW - optionsWidth - 16;
+    renderer.drawRect(previewX - platW / 2, previewY + 35, platW, 8, platformColor, true);
 
     // Bot preview
-    renderBotPreview(slot, previewX, previewY, 50.0f);
+    renderBotPreview(slot, previewX, previewY, 45.0f);
 
-    // Stats display below preview
+    // Mini stats below preview
     BotStats stats = calculateBotStats(slot);
-    float statsWidth = width - optionsWidth - 20;
-    renderStatsDisplay(stats, x + optionsWidth + 5, y + 150, statsWidth, playerColor);
+    float statsWidth = bayW - optionsWidth - 12;
+    renderStatsDisplay(stats, bayX + optionsWidth + 4, bayY + 130, statsWidth, playerColor);
 }
 
 // StageSelectScreen

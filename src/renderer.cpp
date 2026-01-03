@@ -485,9 +485,13 @@ void Renderer::drawDiamond(float cx, float cy, float width, float height, float 
     SDL_RenderGeometry(sdlRenderer, nullptr, vertices, 4, indices, 6);
 }
 
-void Renderer::drawBot(const Bot& bot, SDL_Color color) {
+void Renderer::drawBot(const Bot& bot, SDL_Color color, float offsetX, float offsetY) {
     const auto& frame = ComponentRegistry::instance().getFrame(bot.frameIndex);
     Vec2 facing = bot.getFacingVector();
+
+    // Apply camera offset to bot position
+    float bx = bot.x + offsetX;
+    float by = bot.y + offsetY;
 
     // Draw shadow
     SDL_Color shadowColor = {0, 0, 0, 80};
@@ -511,23 +515,23 @@ void Renderer::drawBot(const Bot& bot, SDL_Color color) {
         case FrameShape::Square: {
             // Square bot with beveled look
             float size = bot.radius * 1.6f;
-            drawRotatedRect(bot.x + shadowOffset, bot.y + shadowOffset, size, size, bot.angle, shadowColor);
-            drawRotatedRect(bot.x, bot.y, size, size, bot.angle, color);
+            drawRotatedRect(bx + shadowOffset, by + shadowOffset, size, size, bot.angle, shadowColor);
+            drawRotatedRect(bx, by, size, size, bot.angle, color);
             // Inner highlight
-            drawRotatedRect(bot.x, bot.y, size * 0.7f, size * 0.7f, bot.angle, lightColor);
+            drawRotatedRect(bx, by, size * 0.7f, size * 0.7f, bot.angle, lightColor);
             break;
         }
         case FrameShape::Rectangle: {
             // Wide rectangle (tank)
             float w = bot.radius * 2.2f;
             float h = bot.radius * 1.4f;
-            drawRotatedRect(bot.x + shadowOffset, bot.y + shadowOffset, w, h, bot.angle, shadowColor);
-            drawRotatedRect(bot.x, bot.y, w, h, bot.angle, color);
+            drawRotatedRect(bx + shadowOffset, by + shadowOffset, w, h, bot.angle, shadowColor);
+            drawRotatedRect(bx, by, w, h, bot.angle, color);
             // Track marks
             Vec2 perp(-facing.y, facing.x);
-            drawRotatedRect(bot.x + perp.x * h * 0.3f, bot.y + perp.y * h * 0.3f,
+            drawRotatedRect(bx + perp.x * h * 0.3f, by + perp.y * h * 0.3f,
                            w * 0.9f, h * 0.2f, bot.angle, darkColor);
-            drawRotatedRect(bot.x - perp.x * h * 0.3f, bot.y - perp.y * h * 0.3f,
+            drawRotatedRect(bx - perp.x * h * 0.3f, by - perp.y * h * 0.3f,
                            w * 0.9f, h * 0.2f, bot.angle, darkColor);
             break;
         }
@@ -535,10 +539,10 @@ void Renderer::drawBot(const Bot& bot, SDL_Color color) {
             // Wedge/dart shape - aggressive pointed front
             float size = bot.radius * 1.8f;
             Vec2 perp(-facing.y, facing.x);
-            float frontX = bot.x + facing.x * size * 0.6f;
-            float frontY = bot.y + facing.y * size * 0.6f;
-            float backX = bot.x - facing.x * size * 0.4f;
-            float backY = bot.y - facing.y * size * 0.4f;
+            float frontX = bx + facing.x * size * 0.6f;
+            float frontY = by + facing.y * size * 0.6f;
+            float backX = bx - facing.x * size * 0.4f;
+            float backY = by - facing.y * size * 0.4f;
 
             // Shadow
             drawTriangle(frontX + shadowOffset, frontY + shadowOffset,
@@ -551,53 +555,53 @@ void Renderer::drawBot(const Bot& bot, SDL_Color color) {
                         backX + perp.x * size * 0.5f, backY + perp.y * size * 0.5f,
                         color, true);
             // Cockpit
-            drawTriangle(bot.x + facing.x * size * 0.1f, bot.y + facing.y * size * 0.1f,
-                        bot.x - perp.x * size * 0.2f, bot.y - perp.y * size * 0.2f,
-                        bot.x + perp.x * size * 0.2f, bot.y + perp.y * size * 0.2f,
+            drawTriangle(bx + facing.x * size * 0.1f, by + facing.y * size * 0.1f,
+                        bx - perp.x * size * 0.2f, by - perp.y * size * 0.2f,
+                        bx + perp.x * size * 0.2f, by + perp.y * size * 0.2f,
                         lightColor, true);
             break;
         }
         case FrameShape::Circle: {
             // Round disc
-            drawFilledCircle(bot.x + shadowOffset, bot.y + shadowOffset, bot.radius, shadowColor);
-            drawFilledCircle(bot.x, bot.y, bot.radius, color);
-            drawFilledCircle(bot.x - 2, bot.y - 2, bot.radius * 0.5f, lightColor);
+            drawFilledCircle(bx + shadowOffset, by + shadowOffset, bot.radius, shadowColor);
+            drawFilledCircle(bx, by, bot.radius, color);
+            drawFilledCircle(bx - 2, by - 2, bot.radius * 0.5f, lightColor);
             break;
         }
         case FrameShape::Diamond: {
             // Small diamond shape
             float size = bot.radius * 1.5f;
-            drawDiamond(bot.x + shadowOffset, bot.y + shadowOffset, size, size * 1.3f, bot.angle, shadowColor);
-            drawDiamond(bot.x, bot.y, size, size * 1.3f, bot.angle, color);
-            drawDiamond(bot.x, bot.y, size * 0.4f, size * 0.5f, bot.angle, lightColor);
+            drawDiamond(bx + shadowOffset, by + shadowOffset, size, size * 1.3f, bot.angle, shadowColor);
+            drawDiamond(bx, by, size, size * 1.3f, bot.angle, color);
+            drawDiamond(bx, by, size * 0.4f, size * 0.5f, bot.angle, lightColor);
             break;
         }
         case FrameShape::Hexagon: {
             // Hexagonal frame
-            drawHexagon(bot.x + shadowOffset, bot.y + shadowOffset, bot.radius, bot.angle, shadowColor, true);
-            drawHexagon(bot.x, bot.y, bot.radius, bot.angle, color, true);
-            drawHexagon(bot.x, bot.y, bot.radius * 0.5f, bot.angle + PI / 6.0f, lightColor, true);
+            drawHexagon(bx + shadowOffset, by + shadowOffset, bot.radius, bot.angle, shadowColor, true);
+            drawHexagon(bx, by, bot.radius, bot.angle, color, true);
+            drawHexagon(bx, by, bot.radius * 0.5f, bot.angle + PI / 6.0f, lightColor, true);
             break;
         }
     }
 
     // Draw front direction indicator
     float indicatorDist = bot.radius * 0.8f;
-    float indicatorX = bot.x + facing.x * indicatorDist;
-    float indicatorY = bot.y + facing.y * indicatorDist;
+    float indicatorX = bx + facing.x * indicatorDist;
+    float indicatorY = by + facing.y * indicatorDist;
     SDL_Color indicatorColor = {255, 255, 255, 200};
     drawFilledCircle(indicatorX, indicatorY, 4.0f, indicatorColor);
 
     // Draw weapon
-    drawBotWeapon(bot, color);
+    drawBotWeapon(bot, color, offsetX, offsetY);
 
     // Draw grabbed indicator
     if (bot.grabState == GrabState::Grabbed) {
         SDL_Color tint = {255, 100, 100, 180};
         for (int i = 0; i < 4; ++i) {
             float angle = (i / 4.0f) * 2.0f * PI + bot.angle;
-            float px = bot.x + std::cos(angle) * (bot.radius + 8);
-            float py = bot.y + std::sin(angle) * (bot.radius + 8);
+            float px = bx + std::cos(angle) * (bot.radius + 8);
+            float py = by + std::sin(angle) * (bot.radius + 8);
             drawFilledCircle(px, py, 5.0f, tint);
         }
     }
@@ -605,39 +609,43 @@ void Renderer::drawBot(const Bot& bot, SDL_Color color) {
     // Draw shield effect
     if (bot.shieldActive) {
         SDL_Color shield = {100, 180, 255, 150};
-        drawCircleOutline(bot.x, bot.y, bot.radius + 10, shield, 3.0f);
-        drawCircleOutline(bot.x, bot.y, bot.radius + 6, shield, 2.0f);
+        drawCircleOutline(bx, by, bot.radius + 10, shield, 3.0f);
+        drawCircleOutline(bx, by, bot.radius + 6, shield, 2.0f);
     }
 
     // Draw anchor effect
     if (bot.anchorActive) {
         SDL_Color anchor = {200, 200, 200, 220};
-        drawRect(bot.x - bot.radius - 5, bot.y - 3, bot.radius * 2 + 10, 6, anchor, true);
-        drawRect(bot.x - 3, bot.y - bot.radius - 5, 6, bot.radius * 2 + 10, anchor, true);
+        drawRect(bx - bot.radius - 5, by - 3, bot.radius * 2 + 10, 6, anchor, true);
+        drawRect(bx - 3, by - bot.radius - 5, 6, bot.radius * 2 + 10, anchor, true);
     }
 
     // Draw berserk effect
     if (bot.berserkActive) {
         SDL_Color berserk = {255, 50, 50, 150};
-        drawCircleOutline(bot.x, bot.y, bot.radius + 5, berserk, 2.0f);
+        drawCircleOutline(bx, by, bot.radius + 5, berserk, 2.0f);
     }
 
     // Draw overdrive effect
     if (bot.overdriveActive) {
         SDL_Color overdrive = {255, 200, 50, 150};
-        drawCircleOutline(bot.x, bot.y, bot.radius + 7, overdrive, 2.0f);
+        drawCircleOutline(bx, by, bot.radius + 7, overdrive, 2.0f);
     }
 }
 
-void Renderer::drawBotWeapon(const Bot& bot, SDL_Color color) {
+void Renderer::drawBotWeapon(const Bot& bot, SDL_Color color, float offsetX, float offsetY) {
     const auto& weapon = ComponentRegistry::instance().getWeapon(bot.weaponIndex);
     Vec2 facing = bot.getFacingVector();
+
+    // Apply camera offset
+    float bx = bot.x + offsetX;
+    float by = bot.y + offsetY;
 
     if (weapon.name == "Spinner") {
         // Draw spinner disc
         float spinnerRadius = bot.radius * 0.6f;
-        float spinnerX = bot.x + facing.x * bot.radius * 0.3f;
-        float spinnerY = bot.y + facing.y * bot.radius * 0.3f;
+        float spinnerX = bx + facing.x * bot.radius * 0.3f;
+        float spinnerY = by + facing.y * bot.radius * 0.3f;
 
         SDL_Color spinnerColor = {200, 200, 200, 255};
         if (bot.spinnerSpeed > 0.1f) {
@@ -657,19 +665,19 @@ void Renderer::drawBotWeapon(const Bot& bot, SDL_Color color) {
         SDL_Color jawColor = {150, 150, 160, 255};
 
         // Left jaw
-        float lx = bot.x + facing.x * bot.radius * 0.8f - perp.x * jawOffset;
-        float ly = bot.y + facing.y * bot.radius * 0.8f - perp.y * jawOffset;
+        float lx = bx + facing.x * bot.radius * 0.8f - perp.x * jawOffset;
+        float ly = by + facing.y * bot.radius * 0.8f - perp.y * jawOffset;
         drawRotatedRect(lx, ly, jawLen, jawWidth, bot.angle - 0.3f, jawColor);
 
         // Right jaw
-        float rx = bot.x + facing.x * bot.radius * 0.8f + perp.x * jawOffset;
-        float ry = bot.y + facing.y * bot.radius * 0.8f + perp.y * jawOffset;
+        float rx = bx + facing.x * bot.radius * 0.8f + perp.x * jawOffset;
+        float ry = by + facing.y * bot.radius * 0.8f + perp.y * jawOffset;
         drawRotatedRect(rx, ry, jawLen, jawWidth, bot.angle + 0.3f, jawColor);
     }
     else if (weapon.name == "Hammer") {
         // Draw hammer head
-        float hammerX = bot.x + facing.x * bot.radius * 1.1f;
-        float hammerY = bot.y + facing.y * bot.radius * 1.1f;
+        float hammerX = bx + facing.x * bot.radius * 1.1f;
+        float hammerY = by + facing.y * bot.radius * 1.1f;
         SDL_Color hammerColor = {180, 180, 190, 255};
         if (bot.hammerWindingUp) {
             hammerColor = {255, 200, 100, 255};
@@ -679,8 +687,8 @@ void Renderer::drawBotWeapon(const Bot& bot, SDL_Color color) {
     }
     else if (weapon.name == "Battering Ram") {
         // Draw ram front plate
-        float ramX = bot.x + facing.x * bot.radius * 0.9f;
-        float ramY = bot.y + facing.y * bot.radius * 0.9f;
+        float ramX = bx + facing.x * bot.radius * 0.9f;
+        float ramY = by + facing.y * bot.radius * 0.9f;
         SDL_Color ramColor = {100, 100, 120, 255};
         drawRotatedRect(ramX, ramY, bot.radius * 0.3f, bot.radius * 0.8f,
                         bot.angle, ramColor);
@@ -709,62 +717,125 @@ void Renderer::drawProgressBar(float x, float y, float width, float height,
 }
 
 void Renderer::drawStage(const StageDef& stage, float offsetX, float offsetY) {
-    // Draw floor with retro grid pattern
+    // === 16-BIT RETRO ARENA FLOOR ===
+
+    // Base floor color
     drawRect(offsetX, offsetY, stage.width, stage.height, stage.backgroundColor, true);
 
-    // Draw grid lines for retro look
-    SDL_Color gridColor = {
-        static_cast<Uint8>(std::min(255, stage.backgroundColor.r + 15)),
-        static_cast<Uint8>(std::min(255, stage.backgroundColor.g + 15)),
-        static_cast<Uint8>(std::min(255, stage.backgroundColor.b + 15)),
-        100
+    // Checkerboard pattern for retro floor
+    SDL_Color tileColor1 = stage.backgroundColor;
+    SDL_Color tileColor2 = {
+        static_cast<Uint8>(std::max(0, stage.backgroundColor.r - 12)),
+        static_cast<Uint8>(std::max(0, stage.backgroundColor.g - 12)),
+        static_cast<Uint8>(std::max(0, stage.backgroundColor.b - 12)),
+        255
     };
-    float gridSize = 40.0f;
-    for (float x = gridSize; x < stage.width; x += gridSize) {
-        drawLine(offsetX + x, offsetY, offsetX + x, offsetY + stage.height, gridColor, 1.0f);
-    }
-    for (float y = gridSize; y < stage.height; y += gridSize) {
-        drawLine(offsetX, offsetY + y, offsetX + stage.width, offsetY + y, gridColor, 1.0f);
+    float tileSize = 32.0f;
+    for (float ty = 0; ty < stage.height; ty += tileSize) {
+        for (float tx = 0; tx < stage.width; tx += tileSize) {
+            int tileX = static_cast<int>(tx / tileSize);
+            int tileY = static_cast<int>(ty / tileSize);
+            if ((tileX + tileY) % 2 == 1) {
+                float tw = std::min(tileSize, stage.width - tx);
+                float th = std::min(tileSize, stage.height - ty);
+                drawRect(offsetX + tx, offsetY + ty, tw, th, tileColor2, true);
+            }
+        }
     }
 
-    // Draw walls with chunky retro border
-    float wallThickness = 8.0f;
+    // Center circle marking
+    float centerX = offsetX + stage.width / 2.0f;
+    float centerY = offsetY + stage.height / 2.0f;
+    float circleRadius = std::min(stage.width, stage.height) * 0.2f;
+    SDL_Color circleColor = {
+        static_cast<Uint8>(std::min(255, stage.wallColor.r + 30)),
+        static_cast<Uint8>(std::min(255, stage.wallColor.g + 30)),
+        static_cast<Uint8>(std::min(255, stage.wallColor.b + 30)),
+        80
+    };
+    drawCircleOutline(centerX, centerY, circleRadius, circleColor, 3.0f);
+    drawCircleOutline(centerX, centerY, circleRadius * 0.3f, circleColor, 2.0f);
+
+    // Cross lines in center
+    SDL_Color crossColor = {circleColor.r, circleColor.g, circleColor.b, 50};
+    drawLine(centerX - circleRadius, centerY, centerX + circleRadius, centerY, crossColor, 2.0f);
+    drawLine(centerX, centerY - circleRadius, centerX, centerY + circleRadius, crossColor, 2.0f);
+
+    // === CHUNKY RETRO WALLS ===
+    float wallThickness = 12.0f;
+    SDL_Color wallMain = stage.wallColor;
     SDL_Color wallDark = {
-        static_cast<Uint8>(stage.wallColor.r * 0.6f),
-        static_cast<Uint8>(stage.wallColor.g * 0.6f),
-        static_cast<Uint8>(stage.wallColor.b * 0.6f),
+        static_cast<Uint8>(stage.wallColor.r * 0.5f),
+        static_cast<Uint8>(stage.wallColor.g * 0.5f),
+        static_cast<Uint8>(stage.wallColor.b * 0.5f),
         255
     };
     SDL_Color wallLight = {
-        static_cast<Uint8>(std::min(255, stage.wallColor.r + 40)),
-        static_cast<Uint8>(std::min(255, stage.wallColor.g + 40)),
-        static_cast<Uint8>(std::min(255, stage.wallColor.b + 40)),
+        static_cast<Uint8>(std::min(255, stage.wallColor.r + 50)),
+        static_cast<Uint8>(std::min(255, stage.wallColor.g + 50)),
+        static_cast<Uint8>(std::min(255, stage.wallColor.b + 50)),
         255
     };
 
-    // Outer wall (dark)
+    // Outer wall frame (3D beveled look)
+    // Top wall
     drawRect(offsetX - wallThickness, offsetY - wallThickness,
-             stage.width + wallThickness * 2, wallThickness, wallDark, true);  // Top
+             stage.width + wallThickness * 2, wallThickness, wallMain, true);
+    drawRect(offsetX - wallThickness, offsetY - wallThickness,
+             stage.width + wallThickness * 2, 3, wallLight, true);  // Top highlight
+    drawRect(offsetX - wallThickness, offsetY - 3,
+             stage.width + wallThickness * 2, 3, wallDark, true);  // Bottom shadow
+
+    // Bottom wall
     drawRect(offsetX - wallThickness, offsetY + stage.height,
-             stage.width + wallThickness * 2, wallThickness, wallLight, true);  // Bottom
+             stage.width + wallThickness * 2, wallThickness, wallMain, true);
+    drawRect(offsetX - wallThickness, offsetY + stage.height,
+             stage.width + wallThickness * 2, 3, wallLight, true);
+    drawRect(offsetX - wallThickness, offsetY + stage.height + wallThickness - 3,
+             stage.width + wallThickness * 2, 3, wallDark, true);
+
+    // Left wall
     drawRect(offsetX - wallThickness, offsetY,
-             wallThickness, stage.height, wallDark, true);  // Left
+             wallThickness, stage.height, wallMain, true);
+    drawRect(offsetX - wallThickness, offsetY, 3, stage.height, wallLight, true);
+    drawRect(offsetX - 3, offsetY, 3, stage.height, wallDark, true);
+
+    // Right wall
     drawRect(offsetX + stage.width, offsetY,
-             wallThickness, stage.height, wallLight, true);  // Right
+             wallThickness, stage.height, wallMain, true);
+    drawRect(offsetX + stage.width, offsetY, 3, stage.height, wallLight, true);
+    drawRect(offsetX + stage.width + wallThickness - 3, offsetY, 3, stage.height, wallDark, true);
 
-    // Inner wall highlight
-    drawRect(offsetX, offsetY, stage.width, 2, wallLight, true);  // Top inner
-    drawRect(offsetX, offsetY + stage.height - 2, stage.width, 2, wallDark, true);  // Bottom inner
-    drawRect(offsetX, offsetY, 2, stage.height, wallLight, true);  // Left inner
-    drawRect(offsetX + stage.width - 2, offsetY, 2, stage.height, wallDark, true);  // Right inner
+    // Inner edge highlight (arena border)
+    drawRect(offsetX, offsetY, stage.width, 2, wallLight, true);
+    drawRect(offsetX, offsetY + stage.height - 2, stage.width, 2, wallDark, true);
+    drawRect(offsetX, offsetY, 2, stage.height, wallLight, true);
+    drawRect(offsetX + stage.width - 2, offsetY, 2, stage.height, wallDark, true);
 
-    // Corner accents
-    SDL_Color cornerColor = {255, 200, 50, 200};
-    float cornerSize = 12.0f;
-    drawRect(offsetX, offsetY, cornerSize, cornerSize, cornerColor, true);
-    drawRect(offsetX + stage.width - cornerSize, offsetY, cornerSize, cornerSize, cornerColor, true);
-    drawRect(offsetX, offsetY + stage.height - cornerSize, cornerSize, cornerSize, cornerColor, true);
-    drawRect(offsetX + stage.width - cornerSize, offsetY + stage.height - cornerSize, cornerSize, cornerSize, cornerColor, true);
+    // Corner posts (decorative)
+    float postSize = 16.0f;
+    SDL_Color postColor = {255, 200, 50, 255};
+    SDL_Color postDark = {180, 140, 30, 255};
+
+    // Top-left corner post
+    drawRect(offsetX - wallThickness, offsetY - wallThickness, postSize, postSize, postColor, true);
+    drawRect(offsetX - wallThickness, offsetY - wallThickness, postSize, 2, {255, 240, 150, 255}, true);
+    drawRect(offsetX - wallThickness + postSize - 2, offsetY - wallThickness, 2, postSize, postDark, true);
+
+    // Top-right corner post
+    drawRect(offsetX + stage.width + wallThickness - postSize, offsetY - wallThickness, postSize, postSize, postColor, true);
+    drawRect(offsetX + stage.width + wallThickness - postSize, offsetY - wallThickness, postSize, 2, {255, 240, 150, 255}, true);
+    drawRect(offsetX + stage.width + wallThickness - 2, offsetY - wallThickness, 2, postSize, postDark, true);
+
+    // Bottom-left corner post
+    drawRect(offsetX - wallThickness, offsetY + stage.height + wallThickness - postSize, postSize, postSize, postColor, true);
+    drawRect(offsetX - wallThickness, offsetY + stage.height + wallThickness - postSize, postSize, 2, {255, 240, 150, 255}, true);
+    drawRect(offsetX - wallThickness + postSize - 2, offsetY + stage.height + wallThickness - postSize, 2, postSize, postDark, true);
+
+    // Bottom-right corner post
+    drawRect(offsetX + stage.width + wallThickness - postSize, offsetY + stage.height + wallThickness - postSize, postSize, postSize, postColor, true);
+    drawRect(offsetX + stage.width + wallThickness - postSize, offsetY + stage.height + wallThickness - postSize, postSize, 2, {255, 240, 150, 255}, true);
+    drawRect(offsetX + stage.width + wallThickness - 2, offsetY + stage.height + wallThickness - postSize, 2, postSize, postDark, true);
 
     // Draw hazards
     for (const auto& hazard : stage.hazards) {

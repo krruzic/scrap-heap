@@ -682,7 +682,7 @@ void BattleManager::render(const BattleState& state) {
         if (!bot.isAlive) continue;
 
         SDL_Color color = Renderer::getPlayerColor(bot.colorIndex);
-        renderer.drawBot(bot, color);
+        renderer.drawBot(bot, color, state.cameraOffsetX, state.cameraOffsetY);
     }
 
     // Draw combat events
