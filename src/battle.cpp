@@ -847,101 +847,9 @@ void BattleManager::renderShrinkingWall(const BattleState& state) {
 void BattleManager::renderHUD(const BattleState& state) {
     auto& renderer = Renderer::instance();
 
-    float hudY = 10;
-    float barWidth = 150;
-    float barHeight = 20;
-    float spacing = 20;
+    // === RETRO ARCADE STYLE HUD ===
 
-    // Health bars for each player (top center)
-    float totalWidth = state.bots.size() * (barWidth + spacing) - spacing;
-    float startX = (WINDOW_WIDTH - totalWidth) / 2.0f;
-
-    for (size_t i = 0; i < state.bots.size(); ++i) {
-        const auto& bot = state.bots[i];
-        float x = startX + i * (barWidth + spacing);
-
-        SDL_Color playerColor = Renderer::getPlayerColor(bot.colorIndex);
-        SDL_Color bgColor = {40, 40, 50, 255};
-
-        // Grey out dead players
-        if (!bot.isAlive) {
-            playerColor = {100, 100, 100, 255};
-        }
-
-        // Player name
-        renderer.drawText(bot.displayName, x + barWidth / 2, hudY,
-                         renderer.getFontSmall(), playerColor, TextAlign::Center);
-
-        // Health bar
-        renderer.drawHealthBar(x, hudY + 25, barWidth, barHeight,
-                              bot.health, bot.maxHealth, playerColor, bgColor);
-
-        // Escape progress bar if grabbed
-        if (bot.grabState == GrabState::Grabbed) {
-            SDL_Color escapeColor = {255, 200, 50, 255};
-            renderer.drawProgressBar(x, hudY + 48, barWidth, 8,
-                                    bot.grabEscapeProgress, escapeColor, bgColor);
-        }
-    }
-
-    // Corner score displays (kills count)
-    // Positions: P1=top-left, P2=top-right, P3=bottom-left, P4=bottom-right
-    float cornerMargin = 20.0f;
-    float cornerPositions[4][2] = {
-        {cornerMargin, 90},                                    // Top-left
-        {WINDOW_WIDTH - cornerMargin, 90},                     // Top-right
-        {cornerMargin, WINDOW_HEIGHT - cornerMargin - 30},     // Bottom-left
-        {WINDOW_WIDTH - cornerMargin, WINDOW_HEIGHT - cornerMargin - 30}  // Bottom-right
-    };
-    TextAlign cornerAligns[4] = {
-        TextAlign::Left, TextAlign::Right, TextAlign::Left, TextAlign::Right
-    };
-
-    for (size_t i = 0; i < state.bots.size() && i < 4; ++i) {
-        const auto& bot = state.bots[i];
-        const auto& stats = state.botStats.at(bot.playerIndex);
-        SDL_Color playerColor = Renderer::getPlayerColor(bot.colorIndex);
-
-        if (!bot.isAlive) {
-            playerColor = {100, 100, 100, 255};
-        }
-
-        float px = cornerPositions[i][0];
-        float py = cornerPositions[i][1];
-        TextAlign align = cornerAligns[i];
-
-        // Draw score box background
-        float boxWidth = 80;
-        float boxHeight = 50;
-        float boxX = (align == TextAlign::Left) ? px - 5 : px - boxWidth + 5;
-        SDL_Color boxBg = {20, 20, 30, 180};
-        renderer.drawRect(boxX, py - 5, boxWidth, boxHeight, boxBg, true);
-
-        // Player indicator (small colored square)
-        float sqSize = 12;
-        float sqX = (align == TextAlign::Left) ? px : px - sqSize;
-        renderer.drawRect(sqX, py, sqSize, sqSize, playerColor, true);
-
-        // KO count
-        std::string koText = std::to_string(stats.kills) + " KO";
-        float textX = (align == TextAlign::Left) ? px + sqSize + 5 : px - sqSize - 5;
-        renderer.drawText(koText, textX, py - 2, renderer.getFontSmall(),
-                         {255, 255, 255, 255}, align);
-
-        // Show kill popups (+1) for this player
-        for (const auto& popup : state.killPopups) {
-            if (popup.playerIndex == bot.playerIndex) {
-                uint8_t alpha = static_cast<uint8_t>(popup.getAlpha() * 255);
-                SDL_Color popupColor = {100, 255, 100, alpha};
-                float popupY = py + 18 - (1.0f - popup.timer) * 20;  // Float upward
-                float popupX = (align == TextAlign::Left) ? px + 50 : px - 50;
-                renderer.drawText("+1", popupX, popupY, renderer.getFontSmall(),
-                                 popupColor, TextAlign::Center);
-            }
-        }
-    }
-
-    // Timer
+    // Timer at top center with retro box
     int timeLeft = static_cast<int>(state.maxMatchTime - state.matchTimer);
     if (timeLeft < 0) timeLeft = 0;
     int minutes = timeLeft / 60;
@@ -950,26 +858,203 @@ void BattleManager::renderHUD(const BattleState& state) {
     char timerStr[16];
     snprintf(timerStr, sizeof(timerStr), "%d:%02d", minutes, seconds);
 
-    SDL_Color timerColor = (timeLeft <= 30) ?
-        SDL_Color{255, 100, 100, 255} : SDL_Color{200, 200, 200, 255};
-    renderer.drawTextShadow(timerStr, WINDOW_WIDTH / 2.0f, hudY + 55,
-                           renderer.getFontMedium(), timerColor, TextAlign::Center);
+    // Timer box
+    float timerBoxW = 80;
+    float timerBoxH = 28;
+    float timerBoxX = WINDOW_WIDTH / 2.0f - timerBoxW / 2.0f;
+    float timerBoxY = 6;
 
-    // Wall warning
+    // Chunky retro timer box
+    SDL_Color timerBoxBg = {10, 10, 20, 255};
+    SDL_Color timerBoxBorder = {100, 100, 120, 255};
+    SDL_Color timerBoxHighlight = {60, 60, 80, 255};
+
+    renderer.drawRect(timerBoxX, timerBoxY, timerBoxW, timerBoxH, timerBoxBg, true);
+    renderer.drawRectOutline(timerBoxX, timerBoxY, timerBoxW, timerBoxH, timerBoxBorder, 3.0f);
+    renderer.drawRect(timerBoxX + 3, timerBoxY + 3, timerBoxW - 6, 2, timerBoxHighlight, true);
+
+    SDL_Color timerColor = (timeLeft <= 30) ?
+        SDL_Color{255, 80, 80, 255} : SDL_Color{80, 255, 80, 255};
+    renderer.drawText(timerStr, WINDOW_WIDTH / 2.0f, timerBoxY + 7,
+                     renderer.getFontMedium(), timerColor, TextAlign::Center);
+
+    // Health bars - arcade style horizontal bars at top
+    float hudY = 45;
+    float barWidth = 140;
+    float barHeight = 16;
+    float barSpacing = 24;
+    float nameHeight = 14;
+
+    float totalWidth = state.bots.size() * (barWidth + barSpacing) - barSpacing;
+    float startX = (WINDOW_WIDTH - totalWidth) / 2.0f;
+
+    for (size_t i = 0; i < state.bots.size(); ++i) {
+        const auto& bot = state.bots[i];
+        float x = startX + i * (barWidth + barSpacing);
+        float y = hudY;
+
+        SDL_Color playerColor = Renderer::getPlayerColor(bot.colorIndex);
+        SDL_Color darkColor = {
+            static_cast<Uint8>(playerColor.r * 0.3f),
+            static_cast<Uint8>(playerColor.g * 0.3f),
+            static_cast<Uint8>(playerColor.b * 0.3f),
+            255
+        };
+
+        if (!bot.isAlive) {
+            playerColor = {60, 60, 60, 255};
+            darkColor = {30, 30, 30, 255};
+        }
+
+        // Player name with colored background
+        renderer.drawRect(x, y, barWidth, nameHeight, playerColor, true);
+        renderer.drawText(bot.displayName, x + barWidth / 2, y + 2,
+                         renderer.getFontSmall(), {0, 0, 0, 255}, TextAlign::Center);
+
+        // Health bar frame
+        float barY = y + nameHeight + 2;
+        SDL_Color frameBg = {20, 20, 30, 255};
+        SDL_Color frameBorder = {80, 80, 100, 255};
+        renderer.drawRect(x - 2, barY - 2, barWidth + 4, barHeight + 4, frameBg, true);
+        renderer.drawRectOutline(x - 2, barY - 2, barWidth + 4, barHeight + 4, frameBorder, 2.0f);
+
+        // Health bar with segments for retro look
+        float healthRatio = clamp(bot.health / bot.maxHealth, 0.0f, 1.0f);
+        float healthW = barWidth * healthRatio;
+
+        // Dark background
+        renderer.drawRect(x, barY, barWidth, barHeight, darkColor, true);
+
+        // Filled health with gradient effect
+        if (healthW > 0) {
+            SDL_Color brightColor = {
+                static_cast<Uint8>(std::min(255, playerColor.r + 30)),
+                static_cast<Uint8>(std::min(255, playerColor.g + 30)),
+                static_cast<Uint8>(std::min(255, playerColor.b + 30)),
+                255
+            };
+            renderer.drawRect(x, barY, healthW, barHeight / 2, brightColor, true);
+            renderer.drawRect(x, barY + barHeight / 2, healthW, barHeight / 2, playerColor, true);
+        }
+
+        // Segment lines for retro look
+        SDL_Color segmentColor = {0, 0, 0, 80};
+        int segments = 10;
+        float segmentWidth = barWidth / segments;
+        for (int s = 1; s < segments; ++s) {
+            renderer.drawLine(x + s * segmentWidth, barY, x + s * segmentWidth, barY + barHeight, segmentColor, 1.0f);
+        }
+
+        // HP percentage text
+        char hpStr[16];
+        int hpPercent = static_cast<int>(healthRatio * 100);
+        snprintf(hpStr, sizeof(hpStr), "%d%%", hpPercent);
+        renderer.drawText(hpStr, x + barWidth / 2, barY + 3,
+                         renderer.getFontSmall(), {255, 255, 255, 200}, TextAlign::Center);
+
+        // Escape progress if grabbed
+        if (bot.grabState == GrabState::Grabbed) {
+            float escapeY = barY + barHeight + 3;
+            SDL_Color escapeColor = {255, 200, 50, 255};
+            SDL_Color escapeBg = {50, 40, 20, 255};
+            renderer.drawRect(x, escapeY, barWidth, 6, escapeBg, true);
+            renderer.drawRect(x, escapeY, barWidth * bot.grabEscapeProgress, 6, escapeColor, true);
+        }
+    }
+
+    // === CORNER SCORE BOXES - Retro arcade style ===
+    float boxWidth = 64;
+    float boxHeight = 48;
+    float cornerPad = 8;
+
+    // Corner positions: TL, TR, BL, BR
+    float cornerX[4] = {cornerPad, WINDOW_WIDTH - boxWidth - cornerPad,
+                        cornerPad, WINDOW_WIDTH - boxWidth - cornerPad};
+    float cornerY[4] = {90, 90,
+                        WINDOW_HEIGHT - boxHeight - cornerPad, WINDOW_HEIGHT - boxHeight - cornerPad};
+
+    for (size_t i = 0; i < state.bots.size() && i < 4; ++i) {
+        const auto& bot = state.bots[i];
+        const auto& stats = state.botStats.at(bot.playerIndex);
+        SDL_Color playerColor = Renderer::getPlayerColor(bot.colorIndex);
+
+        if (!bot.isAlive) {
+            playerColor.r = playerColor.r / 3;
+            playerColor.g = playerColor.g / 3;
+            playerColor.b = playerColor.b / 3;
+        }
+
+        float bx = cornerX[i];
+        float by = cornerY[i];
+
+        // Retro score box with beveled edges
+        SDL_Color boxBg = {15, 15, 25, 240};
+        SDL_Color boxBorder = playerColor;
+        SDL_Color boxDark = {
+            static_cast<Uint8>(playerColor.r * 0.4f),
+            static_cast<Uint8>(playerColor.g * 0.4f),
+            static_cast<Uint8>(playerColor.b * 0.4f),
+            255
+        };
+
+        // Main box
+        renderer.drawRect(bx, by, boxWidth, boxHeight, boxBg, true);
+
+        // Colored top bar
+        renderer.drawRect(bx, by, boxWidth, 6, playerColor, true);
+
+        // Beveled border
+        renderer.drawRect(bx, by, boxWidth, 2, boxBorder, true);  // Top
+        renderer.drawRect(bx, by + boxHeight - 2, boxWidth, 2, boxDark, true);  // Bottom
+        renderer.drawRect(bx, by, 2, boxHeight, boxBorder, true);  // Left
+        renderer.drawRect(bx + boxWidth - 2, by, 2, boxHeight, boxDark, true);  // Right
+
+        // Player number
+        char pNumStr[8];
+        snprintf(pNumStr, sizeof(pNumStr), "P%zu", i + 1);
+        renderer.drawText(pNumStr, bx + boxWidth / 2, by + 10,
+                         renderer.getFontSmall(), {200, 200, 200, 255}, TextAlign::Center);
+
+        // KO count - big and bold
+        std::string koStr = std::to_string(stats.kills);
+        SDL_Color koColor = stats.kills > 0 ? SDL_Color{100, 255, 100, 255} : SDL_Color{150, 150, 150, 255};
+        renderer.drawText(koStr, bx + boxWidth / 2, by + 22,
+                         renderer.getFontMedium(), koColor, TextAlign::Center);
+
+        // "KO" label
+        renderer.drawText("KO", bx + boxWidth / 2, by + 38,
+                         renderer.getFontSmall(), {120, 120, 140, 255}, TextAlign::Center);
+
+        // Kill popup (+1) animation
+        for (const auto& popup : state.killPopups) {
+            if (popup.playerIndex == bot.playerIndex) {
+                uint8_t alpha = static_cast<uint8_t>(popup.getAlpha() * 255);
+                SDL_Color popupColor = {100, 255, 100, alpha};
+                float popupY = by + 18 - (1.0f - popup.timer) * 30;
+                renderer.drawText("+1", bx + boxWidth + 8, popupY,
+                                 renderer.getFontSmall(), popupColor, TextAlign::Left);
+            }
+        }
+    }
+
+    // Wall warnings
     if (state.wall.active) {
         float timeUntilShrink = ShrinkingWall::PHASE_DURATION - state.wall.phaseTimer;
         if (timeUntilShrink > 0 && timeUntilShrink <= 5.0f) {
-            SDL_Color warningColor = {255, 100, 255, 255};
-            renderer.drawText("WALL CLOSING!", WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 80,
+            float pulse = 0.5f + 0.5f * std::sin(state.matchTimer * 8.0f);
+            uint8_t alpha = static_cast<uint8_t>(180 + 75 * pulse);
+            SDL_Color warningColor = {255, 80, 255, alpha};
+            renderer.drawText("! WALL CLOSING !", WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 60,
                              renderer.getFontSmall(), warningColor, TextAlign::Center);
         }
     } else if (state.matchTimer >= ShrinkingWall::INITIAL_DELAY - 5.0f &&
                state.matchTimer < ShrinkingWall::INITIAL_DELAY) {
-        // Warning before wall appears
-        SDL_Color warningColor = {255, 150, 255, 255};
+        float pulse = 0.5f + 0.5f * std::sin(state.matchTimer * 6.0f);
+        uint8_t alpha = static_cast<uint8_t>(150 + 100 * pulse);
+        SDL_Color warningColor = {255, 200, 80, alpha};
         int countdown = static_cast<int>(ShrinkingWall::INITIAL_DELAY - state.matchTimer) + 1;
-        std::string warning = "WALL APPEARS IN " + std::to_string(countdown);
-        renderer.drawText(warning, WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 80,
+        std::string warning = "STORM IN " + std::to_string(countdown);
+        renderer.drawText(warning, WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 60,
                          renderer.getFontSmall(), warningColor, TextAlign::Center);
     }
 }
@@ -977,26 +1062,43 @@ void BattleManager::renderHUD(const BattleState& state) {
 void BattleManager::renderGameOver(const BattleState& state) {
     auto& renderer = Renderer::instance();
 
-    // Darken screen
-    SDL_Color overlay = {0, 0, 0, 200};
+    // === RETRO ARCADE GAME OVER SCREEN ===
+
+    // Scanline overlay effect
+    SDL_Color overlay = {0, 0, 10, 220};
     renderer.drawRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, overlay, true);
 
-    // Title - "GAME!" or "DRAW"
-    std::string titleText = (state.result == BattleResult::Draw) ? "DRAW!" : "GAME!";
-    SDL_Color titleColor = {255, 200, 50, 255};
-    renderer.drawTextShadow(titleText, WINDOW_WIDTH / 2.0f, 60,
-                           renderer.getFontLarge(), titleColor, TextAlign::Center);
+    // Scanlines for CRT effect
+    SDL_Color scanline = {0, 0, 0, 30};
+    for (int y = 0; y < WINDOW_HEIGHT; y += 4) {
+        renderer.drawRect(0, y, WINDOW_WIDTH, 2, scanline, true);
+    }
 
-    // Calculate panel layout
+    // Title banner
+    float bannerY = 30;
+    float bannerH = 50;
+    SDL_Color bannerBg = {20, 20, 40, 255};
+    SDL_Color bannerBorder = {255, 200, 50, 255};
+    renderer.drawRect(0, bannerY, WINDOW_WIDTH, bannerH, bannerBg, true);
+    renderer.drawRect(0, bannerY, WINDOW_WIDTH, 4, bannerBorder, true);
+    renderer.drawRect(0, bannerY + bannerH - 4, WINDOW_WIDTH, 4, bannerBorder, true);
+
+    // Title text
+    std::string titleText = (state.result == BattleResult::Draw) ? "DRAW!" : "GAME!";
+    SDL_Color titleColor = {255, 220, 80, 255};
+    renderer.drawText(titleText, WINDOW_WIDTH / 2.0f, bannerY + 14,
+                     renderer.getFontLarge(), titleColor, TextAlign::Center);
+
+    // Calculate compact panel layout
     int numPlayers = static_cast<int>(state.bots.size());
-    float panelWidth = 180.0f;
-    float panelHeight = 320.0f;
-    float panelSpacing = 30.0f;
+    float panelWidth = 150.0f;
+    float panelHeight = 280.0f;
+    float panelSpacing = 20.0f;
     float totalWidth = numPlayers * panelWidth + (numPlayers - 1) * panelSpacing;
     float startX = (WINDOW_WIDTH - totalWidth) / 2.0f;
-    float panelY = 120.0f;
+    float panelY = 100.0f;
 
-    // Sort players by kills (for placement display)
+    // Sort players by kills for placement
     std::vector<int> placements(numPlayers);
     for (int i = 0; i < numPlayers; ++i) placements[i] = i;
     std::sort(placements.begin(), placements.end(), [&state](int a, int b) {
@@ -1006,7 +1108,6 @@ void BattleManager::renderGameOver(const BattleState& state) {
         return statsA.damageDealt > statsB.damageDealt;
     });
 
-    // Get placement rank for each player
     std::vector<int> ranks(numPlayers);
     for (int i = 0; i < numPlayers; ++i) {
         ranks[placements[i]] = i + 1;
@@ -1020,128 +1121,140 @@ void BattleManager::renderGameOver(const BattleState& state) {
 
         float panelX = startX + i * (panelWidth + panelSpacing);
         SDL_Color playerColor = Renderer::getPlayerColor(bot.colorIndex);
+        SDL_Color darkColor = {
+            static_cast<Uint8>(playerColor.r * 0.3f),
+            static_cast<Uint8>(playerColor.g * 0.3f),
+            static_cast<Uint8>(playerColor.b * 0.3f),
+            255
+        };
 
-        // Panel background
-        SDL_Color panelBg = isWinner ? SDL_Color{60, 50, 20, 240} : SDL_Color{30, 30, 40, 240};
+        // Panel with retro bevel
+        SDL_Color panelBg = isWinner ? SDL_Color{40, 35, 15, 255} : SDL_Color{25, 25, 35, 255};
         renderer.drawRect(panelX, panelY, panelWidth, panelHeight, panelBg, true);
 
-        // Panel border (thicker for winner)
-        SDL_Color borderColor = isWinner ? SDL_Color{255, 200, 50, 255} : SDL_Color{80, 80, 100, 255};
-        float borderWidth = isWinner ? 4.0f : 2.0f;
-        renderer.drawRectOutline(panelX, panelY, panelWidth, panelHeight, borderColor, borderWidth);
+        // Beveled border
+        SDL_Color light = isWinner ? SDL_Color{255, 200, 50, 255} : SDL_Color{80, 80, 100, 255};
+        SDL_Color dark = isWinner ? SDL_Color{150, 120, 30, 255} : SDL_Color{40, 40, 60, 255};
+        renderer.drawRect(panelX, panelY, panelWidth, 3, light, true);  // Top
+        renderer.drawRect(panelX, panelY, 3, panelHeight, light, true);  // Left
+        renderer.drawRect(panelX, panelY + panelHeight - 3, panelWidth, 3, dark, true);  // Bottom
+        renderer.drawRect(panelX + panelWidth - 3, panelY, 3, panelHeight, dark, true);  // Right
 
-        // Winner crown / placement indicator
-        float contentY = panelY + 15;
+        // Colored header bar
+        float headerH = 24;
+        renderer.drawRect(panelX + 3, panelY + 3, panelWidth - 6, headerH, playerColor, true);
+
+        float contentY = panelY + 8;
+
+        // Winner/Placement in header
         if (isWinner) {
-            SDL_Color crownColor = {255, 215, 0, 255};
-            renderer.drawTextShadow("WINNER", panelX + panelWidth / 2, contentY,
-                                   renderer.getFontSmall(), crownColor, TextAlign::Center);
+            renderer.drawText("WINNER", panelX + panelWidth / 2, contentY,
+                             renderer.getFontSmall(), {0, 0, 0, 255}, TextAlign::Center);
         } else {
-            std::string placeStr = "#" + std::to_string(ranks[i]);
-            SDL_Color placeColor = {150, 150, 150, 255};
+            char placeStr[8];
+            snprintf(placeStr, sizeof(placeStr), "#%d", ranks[i]);
             renderer.drawText(placeStr, panelX + panelWidth / 2, contentY,
-                             renderer.getFontSmall(), placeColor, TextAlign::Center);
+                             renderer.getFontSmall(), {0, 0, 0, 255}, TextAlign::Center);
         }
-        contentY += 30;
+        contentY += headerH + 8;
 
         // Player name
-        renderer.drawTextShadow(bot.displayName, panelX + panelWidth / 2, contentY,
-                               renderer.getFontMedium(), playerColor, TextAlign::Center);
-        contentY += 35;
+        renderer.drawText(bot.displayName, panelX + panelWidth / 2, contentY,
+                         renderer.getFontSmall(), playerColor, TextAlign::Center);
+        contentY += 20;
 
-        // Bot visual representation (simple colored circle)
-        float botPreviewX = panelX + panelWidth / 2;
-        float botPreviewY = contentY + 25;
-        SDL_Color previewColor = bot.isAlive ? playerColor : SDL_Color{100, 100, 100, 255};
-        renderer.drawRect(botPreviewX - 25, botPreviewY - 25, 50, 50, previewColor, true);
+        // Bot preview (using frame shape)
+        float previewY = contentY + 30;
+        SDL_Color previewColor = bot.isAlive ? playerColor : SDL_Color{60, 60, 60, 255};
+        renderer.drawRect(panelX + panelWidth / 2 - 20, previewY - 20, 40, 40, previewColor, true);
+        renderer.drawRect(panelX + panelWidth / 2 - 16, previewY - 16, 32, 32, darkColor, true);
         if (!bot.isAlive) {
-            SDL_Color xColor = {200, 50, 50, 255};
-            renderer.drawText("X", botPreviewX, botPreviewY - 8,
-                             renderer.getFontMedium(), xColor, TextAlign::Center);
+            renderer.drawText("X", panelX + panelWidth / 2, previewY - 6,
+                             renderer.getFontMedium(), {255, 60, 60, 255}, TextAlign::Center);
         }
-        contentY += 70;
+        contentY = previewY + 30;
 
-        // Stats section
-        SDL_Color labelColor = {150, 150, 160, 255};
-        SDL_Color valueColor = {255, 255, 255, 255};
-        float labelX = panelX + 15;
-        float valueX = panelX + panelWidth - 15;
-        float statSpacing = 35;
+        // Stats with retro styling
+        float statX = panelX + 10;
+        float statValX = panelX + panelWidth - 10;
+        float statSpacing = 28;
 
-        // KOs (Kills)
-        renderer.drawText("KOs", labelX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
-        SDL_Color koColor = stats.kills > 0 ? SDL_Color{100, 255, 100, 255} : valueColor;
-        renderer.drawText(std::to_string(stats.kills), valueX, contentY,
+        SDL_Color labelColor = {120, 120, 140, 255};
+        SDL_Color valColor = {220, 220, 220, 255};
+
+        // KOs
+        renderer.drawText("KO", statX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
+        SDL_Color koColor = stats.kills > 0 ? SDL_Color{80, 255, 80, 255} : valColor;
+        renderer.drawText(std::to_string(stats.kills), statValX, contentY,
                          renderer.getFontSmall(), koColor, TextAlign::Right);
         contentY += statSpacing;
 
-        // Falls (Deaths)
-        renderer.drawText("Falls", labelX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
-        SDL_Color deathColor = stats.deaths > 0 ? SDL_Color{255, 100, 100, 255} : valueColor;
-        renderer.drawText(std::to_string(stats.deaths), valueX, contentY,
+        // Deaths
+        renderer.drawText("FALL", statX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
+        SDL_Color deathColor = stats.deaths > 0 ? SDL_Color{255, 80, 80, 255} : valColor;
+        renderer.drawText(std::to_string(stats.deaths), statValX, contentY,
                          renderer.getFontSmall(), deathColor, TextAlign::Right);
         contentY += statSpacing;
 
         // Damage dealt
-        renderer.drawText("Damage", labelX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
-        char dmgStr[32];
-        snprintf(dmgStr, sizeof(dmgStr), "%.0f%%", stats.damageDealt);
-        renderer.drawText(dmgStr, valueX, contentY, renderer.getFontSmall(), valueColor, TextAlign::Right);
+        renderer.drawText("DMG", statX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
+        char dmgStr[16];
+        snprintf(dmgStr, sizeof(dmgStr), "%.0f", stats.damageDealt);
+        renderer.drawText(dmgStr, statValX, contentY, renderer.getFontSmall(), valColor, TextAlign::Right);
         contentY += statSpacing;
 
         // Damage taken
-        renderer.drawText("Taken", labelX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
-        char takenStr[32];
-        snprintf(takenStr, sizeof(takenStr), "%.0f%%", stats.damageTaken);
-        SDL_Color takenColor = {255, 180, 100, 255};
-        renderer.drawText(takenStr, valueX, contentY, renderer.getFontSmall(), takenColor, TextAlign::Right);
+        renderer.drawText("HIT", statX, contentY, renderer.getFontSmall(), labelColor, TextAlign::Left);
+        char hitStr[16];
+        snprintf(hitStr, sizeof(hitStr), "%.0f", stats.damageTaken);
+        SDL_Color hitColor = {255, 180, 80, 255};
+        renderer.drawText(hitStr, statValX, contentY, renderer.getFontSmall(), hitColor, TextAlign::Right);
     }
 
-    // Match time display
+    // Match time in retro box
+    float timeBoxY = panelY + panelHeight + 15;
+    float timeBoxW = 120;
+    float timeBoxH = 24;
+    float timeBoxX = WINDOW_WIDTH / 2.0f - timeBoxW / 2.0f;
+
+    renderer.drawRect(timeBoxX, timeBoxY, timeBoxW, timeBoxH, {20, 20, 30, 255}, true);
+    renderer.drawRectOutline(timeBoxX, timeBoxY, timeBoxW, timeBoxH, {80, 80, 100, 255}, 2.0f);
+
     int totalSeconds = static_cast<int>(state.matchTimer);
-    int minutes = totalSeconds / 60;
-    int seconds = totalSeconds % 60;
     char timeStr[32];
-    snprintf(timeStr, sizeof(timeStr), "Time: %d:%02d", minutes, seconds);
-    SDL_Color timeColor = {180, 180, 180, 255};
-    renderer.drawText(timeStr, WINDOW_WIDTH / 2.0f, panelY + panelHeight + 30,
-                     renderer.getFontSmall(), timeColor, TextAlign::Center);
+    snprintf(timeStr, sizeof(timeStr), "TIME %d:%02d", totalSeconds / 60, totalSeconds % 60);
+    renderer.drawText(timeStr, WINDOW_WIDTH / 2.0f, timeBoxY + 6,
+                     renderer.getFontSmall(), {150, 255, 150, 255}, TextAlign::Center);
 
-    // Player confirmation status
-    float confirmY = panelY + panelHeight + 60;
-    int confirmedCount = 0;
-    for (int i = 0; i < numPlayers; ++i) {
-        if (state.playersConfirmed[i]) confirmedCount++;
-    }
+    // Confirmation indicators
+    float confirmY = timeBoxY + timeBoxH + 20;
+    float confirmBoxSize = 28;
+    float confirmSpacing = 40;
+    float confirmTotalW = numPlayers * confirmSpacing;
+    float confirmStartX = WINDOW_WIDTH / 2.0f - confirmTotalW / 2.0f + (confirmSpacing - confirmBoxSize) / 2.0f;
 
-    // Show confirmation indicators for each player
-    float confirmTotalWidth = numPlayers * 30.0f + (numPlayers - 1) * 15.0f;
-    float confirmStartX = (WINDOW_WIDTH - confirmTotalWidth) / 2.0f;
     for (int i = 0; i < numPlayers; ++i) {
-        float indicatorX = confirmStartX + i * 45.0f;
+        float ix = confirmStartX + i * confirmSpacing;
         SDL_Color playerColor = Renderer::getPlayerColor(state.bots[i].colorIndex);
 
         if (state.playersConfirmed[i]) {
-            // Confirmed - show checkmark with player color
-            renderer.drawRect(indicatorX, confirmY, 30, 30, playerColor, true);
-            renderer.drawText("OK", indicatorX + 15, confirmY + 6,
-                             renderer.getFontSmall(), {255, 255, 255, 255}, TextAlign::Center);
+            renderer.drawRect(ix, confirmY, confirmBoxSize, confirmBoxSize, playerColor, true);
+            renderer.drawText("OK", ix + confirmBoxSize / 2, confirmY + 8,
+                             renderer.getFontSmall(), {0, 0, 0, 255}, TextAlign::Center);
         } else {
-            // Not confirmed - dim outline
             SDL_Color dimColor = {
                 static_cast<Uint8>(playerColor.r / 2),
                 static_cast<Uint8>(playerColor.g / 2),
-                static_cast<Uint8>(playerColor.b / 2), 150};
-            renderer.drawRectOutline(indicatorX, confirmY, 30, 30, dimColor, 2.0f);
-            renderer.drawText("?", indicatorX + 15, confirmY + 6,
-                             renderer.getFontSmall(), dimColor, TextAlign::Center);
+                static_cast<Uint8>(playerColor.b / 2), 180};
+            renderer.drawRectOutline(ix, confirmY, confirmBoxSize, confirmBoxSize, dimColor, 2.0f);
         }
     }
 
-    // Prompt at bottom
-    SDL_Color promptColor = {200, 200, 200, 255};
-    renderer.drawText("Press A to confirm or START to continue",
-                     WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 40,
+    // Bottom prompt with pulsing effect
+    float pulse = 0.6f + 0.4f * std::sin(state.gameOverTimer * 4.0f);
+    uint8_t promptAlpha = static_cast<uint8_t>(180 * pulse + 75);
+    SDL_Color promptColor = {200, 200, 220, promptAlpha};
+    renderer.drawText("PRESS START", WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 30,
                      renderer.getFontSmall(), promptColor, TextAlign::Center);
 }
 
