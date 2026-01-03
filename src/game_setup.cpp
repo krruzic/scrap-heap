@@ -281,10 +281,62 @@ void GameSetupScreen::handleSlotInput(int slotIndex, const ControllerState* cont
         }
     }
 
-    if (confirm && slot.currentOption == ConfigOption::OK) {
-        slot.state = PlayerSlotState::Ready;
-        if (firstReadyPlayer < 0) {
-            firstReadyPlayer = slotIndex;
+    if (confirm) {
+        // A button advances to next value for component options, or confirms for OK
+        switch (slot.currentOption) {
+            case ConfigOption::Tag: {
+                // Advance to next available tag
+                if (!availableTags.empty()) {
+                    int pos = -1;
+                    for (int i = 0; i < static_cast<int>(availableTags.size()); ++i) {
+                        if (availableTags[i] == slot.tagIndex) {
+                            pos = i;
+                            break;
+                        }
+                    }
+                    // Cycle: -1 (default) -> first tag -> ... -> last tag -> -1
+                    pos = (pos + 1) % (static_cast<int>(availableTags.size()) + 1);
+                    slot.tagIndex = (pos == static_cast<int>(availableTags.size())) ?
+                                    -1 : availableTags[pos];
+                }
+                break;
+            }
+            case ConfigOption::Engine:
+                slot.engineIndex = (slot.engineIndex + 1) % registry.getEngineCount();
+                break;
+            case ConfigOption::Frame:
+                slot.frameIndex = (slot.frameIndex + 1) % registry.getFrameCount();
+                break;
+            case ConfigOption::Weapon:
+                slot.weaponIndex = (slot.weaponIndex + 1) % registry.getWeaponCount();
+                break;
+            case ConfigOption::Special:
+                slot.specialIndex = (slot.specialIndex + 1) % registry.getSpecialCount();
+                break;
+            case ConfigOption::Color: {
+                // Advance to next available color
+                if (!availableColors.empty()) {
+                    int pos = -1;
+                    for (int i = 0; i < static_cast<int>(availableColors.size()); ++i) {
+                        if (availableColors[i] == slot.colorIndex) {
+                            pos = i;
+                            break;
+                        }
+                    }
+                    if (pos < 0) pos = 0;
+                    pos = (pos + 1) % static_cast<int>(availableColors.size());
+                    slot.colorIndex = availableColors[pos];
+                }
+                break;
+            }
+            case ConfigOption::OK:
+                slot.state = PlayerSlotState::Ready;
+                if (firstReadyPlayer < 0) {
+                    firstReadyPlayer = slotIndex;
+                }
+                break;
+            default:
+                break;
         }
     }
 }
@@ -416,22 +468,22 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
 
     if (slot.state == PlayerSlotState::Ready) {
         // Ready state - show bot in garage with READY banner
-        renderBotPreview(slot, centerX, y + height * 0.4f, 55.0f);
+        renderBotPreview(slot, centerX, y + height * 0.32f, 45.0f);
 
         // Ready banner
         SDL_Color readyBg = {20, 60, 20, 255};
         SDL_Color readyText = {100, 255, 100, 255};
-        renderer.drawRect(bayX + 10, y + height * 0.65f, bayW - 20, 22, readyBg, true);
-        renderer.drawText("READY!", centerX, y + height * 0.65f + 4,
+        renderer.drawRect(bayX + 10, y + height * 0.50f, bayW - 20, 20, readyBg, true);
+        renderer.drawText("READY!", centerX, y + height * 0.50f + 3,
                          renderer.getFontSmall(), readyText, TextAlign::Center);
 
         // Player name
-        renderer.drawText(slot.getDisplayName(slotIndex), centerX, y + height * 0.78f,
+        renderer.drawText(slot.getDisplayName(slotIndex), centerX, y + height * 0.60f,
                          renderer.getFontSmall(), playerColor, TextAlign::Center);
 
-        // Compact stats
+        // Compact stats - positioned to fit within bay (panel height ~98px)
         BotStats stats = calculateBotStats(slot);
-        renderStatsDisplay(stats, x + 12, y + height * 0.85f, width - 24, playerColor);
+        renderStatsDisplay(stats, x + 12, y + height * 0.67f, width - 24, playerColor);
         return;
     }
 
@@ -849,63 +901,165 @@ void GameSetupScreen::renderBotPreview(const PlayerSlot& slot, float centerX, fl
     SDL_Color playerColor = Renderer::getPlayerColor(slot.colorIndex);
 
     // Scale based on frame radius
-    float scale = size / 50.0f;  // Normalize to 50 pixel base
+    float scale = size / 50.0f;
     float bodyRadius = frame.radius * scale;
 
-    // Draw shadow
+    // Preview facing upward (angle = -PI/2)
+    float angle = -PI / 2.0f;
+    float facingX = 0.0f;
+    float facingY = -1.0f;
+
+    // Colors
     SDL_Color shadowColor = {0, 0, 0, 80};
-    renderer.drawRect(centerX - bodyRadius + 3, centerY - bodyRadius + 3,
-                     bodyRadius * 2, bodyRadius * 2, shadowColor, true);
-
-    // Main body
-    renderer.drawRect(centerX - bodyRadius, centerY - bodyRadius,
-                     bodyRadius * 2, bodyRadius * 2, playerColor, true);
-
-    // Body border
-    SDL_Color borderColor = {
-        static_cast<uint8_t>(playerColor.r * 0.6f),
-        static_cast<uint8_t>(playerColor.g * 0.6f),
-        static_cast<uint8_t>(playerColor.b * 0.6f),
+    SDL_Color darkColor = {
+        static_cast<Uint8>(playerColor.r * 0.6f),
+        static_cast<Uint8>(playerColor.g * 0.6f),
+        static_cast<Uint8>(playerColor.b * 0.6f),
         255
     };
-    renderer.drawRectOutline(centerX - bodyRadius, centerY - bodyRadius,
-                            bodyRadius * 2, bodyRadius * 2, borderColor, 2.0f);
+    SDL_Color lightColor = {
+        static_cast<Uint8>(std::min(255, playerColor.r + 40)),
+        static_cast<Uint8>(std::min(255, playerColor.g + 40)),
+        static_cast<Uint8>(std::min(255, playerColor.b + 40)),
+        255
+    };
 
-    // Weapon indicator (front of bot)
-    float weaponLength = 15.0f * scale;
-    float weaponWidth = 8.0f * scale;
+    float shadowOffset = 3.0f;
 
-    // Weapon color based on type
-    SDL_Color weaponColor = {180, 180, 200, 255};
-    if (weapon.type == WeaponType::Passive) {
-        weaponColor = {255, 150, 50, 255};  // Orange for spinners etc
-    } else {
-        weaponColor = {200, 200, 220, 255};  // Silver for active weapons
+    // Draw body based on frame shape
+    switch (frame.shape) {
+        case FrameShape::Square: {
+            float bodySize = bodyRadius * 1.6f;
+            renderer.drawRotatedRect(centerX + shadowOffset, centerY + shadowOffset,
+                                    bodySize, bodySize, angle, shadowColor);
+            renderer.drawRotatedRect(centerX, centerY, bodySize, bodySize, angle, playerColor);
+            renderer.drawRotatedRect(centerX, centerY, bodySize * 0.7f, bodySize * 0.7f, angle, lightColor);
+            break;
+        }
+        case FrameShape::Rectangle: {
+            float w = bodyRadius * 2.2f;
+            float h = bodyRadius * 1.4f;
+            renderer.drawRotatedRect(centerX + shadowOffset, centerY + shadowOffset, w, h, angle, shadowColor);
+            renderer.drawRotatedRect(centerX, centerY, w, h, angle, playerColor);
+            // Track marks
+            renderer.drawRotatedRect(centerX - h * 0.3f, centerY, w * 0.9f, h * 0.2f, angle, darkColor);
+            renderer.drawRotatedRect(centerX + h * 0.3f, centerY, w * 0.9f, h * 0.2f, angle, darkColor);
+            break;
+        }
+        case FrameShape::Triangle: {
+            float triSize = bodyRadius * 1.8f;
+            float frontX = centerX + facingX * triSize * 0.6f;
+            float frontY = centerY + facingY * triSize * 0.6f;
+            float backX = centerX - facingX * triSize * 0.4f;
+            float backY = centerY - facingY * triSize * 0.4f;
+            // Shadow
+            renderer.drawTriangle(frontX + shadowOffset, frontY + shadowOffset,
+                                 backX - triSize * 0.5f + shadowOffset, backY + shadowOffset,
+                                 backX + triSize * 0.5f + shadowOffset, backY + shadowOffset,
+                                 shadowColor, true);
+            // Body
+            renderer.drawTriangle(frontX, frontY,
+                                 backX - triSize * 0.5f, backY,
+                                 backX + triSize * 0.5f, backY,
+                                 playerColor, true);
+            // Cockpit
+            renderer.drawTriangle(centerX + facingX * triSize * 0.1f, centerY + facingY * triSize * 0.1f,
+                                 centerX - triSize * 0.2f, centerY,
+                                 centerX + triSize * 0.2f, centerY,
+                                 lightColor, true);
+            break;
+        }
+        case FrameShape::Circle: {
+            renderer.drawCircle(centerX + shadowOffset, centerY + shadowOffset, bodyRadius, shadowColor);
+            renderer.drawCircle(centerX, centerY, bodyRadius, playerColor);
+            renderer.drawCircle(centerX - 2, centerY - 2, bodyRadius * 0.5f, lightColor);
+            break;
+        }
+        case FrameShape::Diamond: {
+            float dw = bodyRadius * 1.5f;
+            float dh = bodyRadius * 1.9f;
+            renderer.drawDiamond(centerX + shadowOffset, centerY + shadowOffset, dw, dh, angle, shadowColor);
+            renderer.drawDiamond(centerX, centerY, dw, dh, angle, playerColor);
+            renderer.drawDiamond(centerX, centerY, dw * 0.4f, dh * 0.5f, angle, lightColor);
+            break;
+        }
+        case FrameShape::Hexagon: {
+            renderer.drawHexagon(centerX + shadowOffset, centerY + shadowOffset, bodyRadius, angle, shadowColor, true);
+            renderer.drawHexagon(centerX, centerY, bodyRadius, angle, playerColor, true);
+            renderer.drawHexagon(centerX, centerY, bodyRadius * 0.5f, angle + PI / 6.0f, lightColor, true);
+            break;
+        }
     }
 
-    // Draw weapon at top (front)
-    renderer.drawRect(centerX - weaponWidth / 2, centerY - bodyRadius - weaponLength,
-                     weaponWidth, weaponLength, weaponColor, true);
+    // Draw front direction indicator
+    float indicatorDist = bodyRadius * 0.8f;
+    float indicatorX = centerX + facingX * indicatorDist;
+    float indicatorY = centerY + facingY * indicatorDist;
+    SDL_Color indicatorColor = {255, 255, 255, 200};
+    renderer.drawCircle(indicatorX, indicatorY, 3.0f, indicatorColor);
 
-    // Direction indicator (small triangle/arrow at front)
-    SDL_Color arrowColor = {255, 255, 255, 200};
-    float arrowSize = 6.0f * scale;
-    renderer.drawRect(centerX - arrowSize / 2, centerY - bodyRadius + 5,
-                     arrowSize, arrowSize, arrowColor, true);
+    // Draw weapon based on type
+    SDL_Color metalColor = {180, 180, 200, 255};
 
-    // Engine exhaust indicators (back of bot)
-    SDL_Color exhaustColor = {100, 100, 120, 200};
-    float exhaustWidth = 6.0f * scale;
-    float exhaustLength = 8.0f * scale;
-
-    renderer.drawRect(centerX - bodyRadius / 2 - exhaustWidth / 2, centerY + bodyRadius,
-                     exhaustWidth, exhaustLength, exhaustColor, true);
-    renderer.drawRect(centerX + bodyRadius / 2 - exhaustWidth / 2, centerY + bodyRadius,
-                     exhaustWidth, exhaustLength, exhaustColor, true);
+    if (weapon.name == "Spinner") {
+        float spinnerRadius = bodyRadius * 0.6f;
+        float spinnerX = centerX + facingX * bodyRadius * 0.3f;
+        float spinnerY = centerY + facingY * bodyRadius * 0.3f;
+        SDL_Color spinnerColor = {255, 150, 50, 255};
+        renderer.drawCircle(spinnerX, spinnerY, spinnerRadius, spinnerColor);
+        renderer.drawCircleOutline(spinnerX, spinnerY, spinnerRadius, metalColor, 2.0f);
+    } else if (weapon.name == "Hammer") {
+        float hammerW = bodyRadius * 0.3f;
+        float hammerL = bodyRadius * 1.0f;
+        renderer.drawRotatedRect(centerX + facingX * bodyRadius * 0.8f,
+                                centerY + facingY * bodyRadius * 0.8f,
+                                hammerW, hammerL, angle, metalColor);
+        renderer.drawRotatedRect(centerX + facingX * bodyRadius * 1.3f,
+                                centerY + facingY * bodyRadius * 1.3f,
+                                hammerW * 2.5f, hammerW * 1.2f, angle, {100, 100, 110, 255});
+    } else if (weapon.name == "Clamp") {
+        float clampLen = bodyRadius * 0.8f;
+        float clampW = bodyRadius * 0.15f;
+        renderer.drawRotatedRect(centerX - bodyRadius * 0.3f + facingX * bodyRadius,
+                                centerY + facingY * bodyRadius,
+                                clampW, clampLen, angle - 0.2f, metalColor);
+        renderer.drawRotatedRect(centerX + bodyRadius * 0.3f + facingX * bodyRadius,
+                                centerY + facingY * bodyRadius,
+                                clampW, clampLen, angle + 0.2f, metalColor);
+    } else if (weapon.name == "Battering Ram") {
+        float ramW = bodyRadius * 1.2f;
+        float ramH = bodyRadius * 0.4f;
+        renderer.drawRotatedRect(centerX + facingX * bodyRadius * 1.2f,
+                                centerY + facingY * bodyRadius * 1.2f,
+                                ramW, ramH, angle, metalColor);
+    } else if (weapon.name == "Saw Blade") {
+        float sawRadius = bodyRadius * 0.4f;
+        SDL_Color sawColor = {200, 200, 220, 255};
+        renderer.drawCircle(centerX - bodyRadius * 0.8f, centerY, sawRadius, sawColor);
+        renderer.drawCircle(centerX + bodyRadius * 0.8f, centerY, sawRadius, sawColor);
+    } else if (weapon.name == "Dual Spinners") {
+        float spinRadius = bodyRadius * 0.35f;
+        SDL_Color spinColor = {255, 150, 50, 255};
+        renderer.drawCircle(centerX - bodyRadius * 0.7f, centerY, spinRadius, spinColor);
+        renderer.drawCircle(centerX + bodyRadius * 0.7f, centerY, spinRadius, spinColor);
+    } else if (weapon.name == "Piston Punch") {
+        float pistonW = bodyRadius * 0.5f;
+        float pistonL = bodyRadius * 0.6f;
+        renderer.drawRotatedRect(centerX + facingX * bodyRadius * 1.1f,
+                                centerY + facingY * bodyRadius * 1.1f,
+                                pistonW, pistonL, angle, metalColor);
+    } else {
+        // Generic weapon bar for others
+        float wLen = bodyRadius * 0.6f;
+        float wW = bodyRadius * 0.2f;
+        renderer.drawRotatedRect(centerX + facingX * (bodyRadius + wLen/2),
+                                centerY + facingY * (bodyRadius + wLen/2),
+                                wW, wLen, angle, metalColor);
+    }
 
     // Frame name label
     SDL_Color labelColor = {200, 200, 200, 255};
-    renderer.drawText(frame.name, centerX, centerY + bodyRadius + 20,
+    renderer.drawText(frame.name, centerX, centerY + bodyRadius + 18,
                      renderer.getFontSmall(), labelColor, TextAlign::Center);
 }
 
