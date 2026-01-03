@@ -1052,6 +1052,84 @@ void BattleManager::renderHUD(const BattleState& state) {
             renderer.drawRect(x, escapeY, barWidth, 6, escapeBg, true);
             renderer.drawRect(x, escapeY, barWidth * bot.grabEscapeProgress, 6, escapeColor, true);
         }
+
+        // === ABILITY STATUS INDICATORS ===
+        float abilityY = barY + barHeight + 12;
+        float iconSize = 14;
+        float iconSpacing = 18;
+
+        // Special ability cooldown
+        const auto& special = ComponentRegistry::instance().getSpecial(bot.specialIndex);
+        float cooldownRatio = bot.specialCooldown / special.cooldown;
+
+        SDL_Color abilityBg = {30, 30, 40, 200};
+        SDL_Color abilityReady = {100, 255, 100, 255};
+        SDL_Color abilityOnCooldown = {100, 100, 100, 200};
+        SDL_Color abilityActive = {255, 200, 50, 255};
+
+        // Draw special ability icon
+        renderer.drawRect(x, abilityY, iconSize, iconSize, abilityBg, true);
+        if (bot.specialActiveTimer > 0) {
+            // Active - show yellow pulsing
+            float pulse = 0.5f + 0.5f * std::sin(state.matchTimer * 10.0f);
+            SDL_Color activeColor = {255, static_cast<Uint8>(180 + 75 * pulse), 50, 255};
+            renderer.drawRect(x + 1, abilityY + 1, iconSize - 2, iconSize - 2, activeColor, true);
+        } else if (bot.specialCooldown <= 0) {
+            // Ready
+            renderer.drawRect(x + 1, abilityY + 1, iconSize - 2, iconSize - 2, abilityReady, true);
+        } else {
+            // On cooldown - show progress
+            float readyH = iconSize * (1.0f - cooldownRatio);
+            renderer.drawRect(x + 1, abilityY + iconSize - readyH, iconSize - 2, readyH - 1, abilityOnCooldown, true);
+        }
+        renderer.drawRectOutline(x, abilityY, iconSize, iconSize, {80, 80, 100, 255}, 1.0f);
+
+        // "S" label for special
+        renderer.drawText("S", x + iconSize / 2, abilityY + 2,
+                         renderer.getFontSmall(), {255, 255, 255, 200}, TextAlign::Center);
+
+        // Powerup status icons
+        float powerupX = x + iconSpacing;
+
+        // Speed boost indicator
+        if (bot.speedBoostTimer > 0) {
+            SDL_Color speedColor = {255, 255, 80, 255};
+            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, speedColor, true);
+            renderer.drawText("!", powerupX + iconSize / 2, abilityY + 2,
+                             renderer.getFontSmall(), {0, 0, 0, 255}, TextAlign::Center);
+            powerupX += iconSpacing;
+        }
+
+        // Damage boost indicator
+        if (bot.damageBoostTimer > 0) {
+            SDL_Color dmgColor = {255, 80, 80, 255};
+            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, dmgColor, true);
+            renderer.drawText("!", powerupX + iconSize / 2, abilityY + 2,
+                             renderer.getFontSmall(), {255, 255, 255, 255}, TextAlign::Center);
+            powerupX += iconSpacing;
+        }
+
+        // Show active ability effects
+        if (bot.boostActive) {
+            SDL_Color boostColor = {80, 200, 255, 255};
+            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, boostColor, true);
+            renderer.drawText("B", powerupX + iconSize / 2, abilityY + 2,
+                             renderer.getFontSmall(), {0, 0, 0, 255}, TextAlign::Center);
+            powerupX += iconSpacing;
+        }
+        if (bot.shieldActive) {
+            SDL_Color shieldColor = {100, 150, 255, 255};
+            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, shieldColor, true);
+            renderer.drawText("D", powerupX + iconSize / 2, abilityY + 2,
+                             renderer.getFontSmall(), {255, 255, 255, 255}, TextAlign::Center);
+            powerupX += iconSpacing;
+        }
+        if (bot.berserkActive) {
+            SDL_Color berserkColor = {255, 50, 50, 255};
+            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, berserkColor, true);
+            renderer.drawText("R", powerupX + iconSize / 2, abilityY + 2,
+                             renderer.getFontSmall(), {255, 255, 255, 255}, TextAlign::Center);
+        }
     }
 
     // === CORNER SCORE BOXES - Retro arcade style ===

@@ -57,8 +57,8 @@ struct ShrinkingWall {
 
     // Get current shrink speed (faster in later phases)
     float getShrinkSpeed() const {
-        // Starts slow, gets faster each phase
-        return 0.5f + currentPhase * 0.4f;
+        // Starts slow, gets faster each phase - 3x faster than before
+        return (0.5f + currentPhase * 0.4f) * 3.0f;
     }
 
     // Reset storm to stage boundaries

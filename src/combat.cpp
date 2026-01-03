@@ -43,13 +43,47 @@ void Combat::applyDamage(Bot& target, float damage, float knockbackForce,
     // Apply damage
     target.health -= actualDamage;
 
-    // Reset spinner (stun mechanic)
-    target.spinnerSpeed = 0.0f;
-    target.spinnerStunTimer = 0.3f;
+    // Reset spinner (stun mechanic) - reduced stun time
+    target.spinnerSpeed *= 0.5f;  // Slow down instead of full reset
+    target.spinnerStunTimer = 0.15f;
 
-    // Apply knockback
+    // Calculate impact point for sparks
+    Vec2 impactPoint;
+    if (source) {
+        float dx = target.x - source->x;
+        float dy = target.y - source->y;
+        float dist = std::sqrt(dx * dx + dy * dy);
+        if (dist > 0.001f) {
+            impactPoint.x = source->x + (dx / dist) * source->radius;
+            impactPoint.y = source->y + (dy / dist) * source->radius;
+        } else {
+            impactPoint.x = target.x;
+            impactPoint.y = target.y;
+        }
+    } else {
+        impactPoint.x = target.x;
+        impactPoint.y = target.y;
+    }
+
+    // Create impact spark event
+    CombatEvent impactEvent;
+    impactEvent.type = CombatEvent::Type::Impact;
+    impactEvent.x = impactPoint.x;
+    impactEvent.y = impactPoint.y;
+    impactEvent.value = knockbackForce;  // Size of sparks based on force
+    impactEvent.timer = 0.3f;
+    events.push_back(impactEvent);
+
+    // Apply knockback to target
     if (knockbackForce > 0) {
         Physics::applyKnockback(target, knockbackDir, knockbackForce);
+
+        // Apply recoil to attacker (Newton's third law)
+        if (source && source->isAlive && !source->anchorActive) {
+            Vec2 recoilDir(-knockbackDir.x, -knockbackDir.y);
+            float recoilForce = knockbackForce * 0.4f;  // 40% recoil
+            Physics::applyKnockback(*source, recoilDir, recoilForce);
+        }
     }
 
     // Backlash reflects damage to attacker
@@ -184,6 +218,7 @@ void Combat::processSpinner(Bot& attacker, Bot& target,
     if (attacker.weaponCooldown > 0) return;
 
     const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
+    const auto& targetWeapon = ComponentRegistry::instance().getWeapon(target.weaponIndex);
 
     float damage = weapon.damage * attacker.spinnerSpeed;
     float knockback = weapon.knockback * attacker.spinnerSpeed;
@@ -193,7 +228,32 @@ void Combat::processSpinner(Bot& attacker, Bot& target,
     if (attacker.overdriveActive) damage *= 1.5f;
 
     Vec2 knockDir(target.x - attacker.x, target.y - attacker.y);
-    applyDamage(target, damage, knockback, knockDir, &attacker, events);
+
+    // Check if target also has a spinning weapon - mutual damage
+    bool targetHasSpinner = (targetWeapon.name == "Spinner" || targetWeapon.name == "Dual Spinners")
+                            && target.spinnerSpeed >= SPINNER_MIN_SPEED;
+
+    if (targetHasSpinner) {
+        // Spinner vs spinner - both take damage based on relative speeds
+        float targetDamage = targetWeapon.damage * target.spinnerSpeed;
+        if (target.damageBoostTimer > 0) targetDamage *= 1.5f;
+        if (target.overdriveActive) targetDamage *= 1.5f;
+
+        // Apply damage to attacker from target's spinner
+        Vec2 reverseKnockDir(-knockDir.x, -knockDir.y);
+        float targetKnockback = targetWeapon.knockback * target.spinnerSpeed;
+
+        // Mutual damage - both spinners hit each other
+        applyDamage(target, damage, knockback, knockDir, &attacker, events);
+        applyDamage(attacker, targetDamage * 0.7f, targetKnockback * 0.7f, reverseKnockDir, &target, events);
+
+        // Both spinners slow down from collision
+        attacker.spinnerSpeed *= 0.6f;
+        target.spinnerSpeed *= 0.6f;
+    } else {
+        // Normal spinner hit
+        applyDamage(target, damage, knockback, knockDir, &attacker, events);
+    }
 
     attacker.weaponCooldown = SPINNER_TICK_TIME;
 }
@@ -594,6 +654,11 @@ void Combat::activateSpecial(Bot& bot, std::vector<Bot>& allBots,
     if (special.name == "Boost") {
         bot.boostActive = true;
         bot.specialActiveTimer = special.duration;
+
+        // Apply immediate forward impulse for burst effect
+        Vec2 facing = bot.getFacingVector();
+        float boostImpulse = 150.0f;
+        Physics::applyImpulse(bot, Vec2(facing.x * boostImpulse, facing.y * boostImpulse));
     }
     else if (special.name == "Anchor") {
         bot.anchorActive = true;

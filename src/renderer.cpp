@@ -642,18 +642,34 @@ void Renderer::drawBotWeapon(const Bot& bot, SDL_Color color, float offsetX, flo
     float by = bot.y + offsetY;
 
     if (weapon.name == "Spinner") {
-        // Draw spinner disc
-        float spinnerRadius = bot.radius * 0.6f;
-        float spinnerX = bx + facing.x * bot.radius * 0.3f;
-        float spinnerY = by + facing.y * bot.radius * 0.3f;
+        // Draw spinner disc - constant size, color indicates speed
+        float spinnerRadius = bot.radius * 0.45f;  // Smaller spinner
+        float spinnerX = bx + facing.x * bot.radius * 0.4f;
+        float spinnerY = by + facing.y * bot.radius * 0.4f;
 
-        SDL_Color spinnerColor = {200, 200, 200, 255};
+        // Base spinner (always visible)
+        SDL_Color baseColor = {120, 120, 130, 255};
+        drawCircle(spinnerX, spinnerY, spinnerRadius, baseColor, true);
+
+        // Spinning blades overlay - brightness based on speed
         if (bot.spinnerSpeed > 0.1f) {
-            // Animate based on spinner speed
-            spinnerColor.r = static_cast<Uint8>(200 + 55 * bot.spinnerSpeed);
+            uint8_t intensity = static_cast<uint8_t>(155 + 100 * bot.spinnerSpeed);
+            SDL_Color bladeColor = {intensity, static_cast<uint8_t>(intensity * 0.6f), 50, 255};
+
+            // Draw spinning blade lines
+            float bladeAngle = bot.angle + bot.spinnerSpeed * 20.0f;  // Rotate with speed
+            for (int i = 0; i < 4; ++i) {
+                float a = bladeAngle + i * PI / 2.0f;
+                float bx1 = spinnerX + std::cos(a) * spinnerRadius * 0.3f;
+                float by1 = spinnerY + std::sin(a) * spinnerRadius * 0.3f;
+                float bx2 = spinnerX + std::cos(a) * spinnerRadius * 0.95f;
+                float by2 = spinnerY + std::sin(a) * spinnerRadius * 0.95f;
+                drawLine(bx1, by1, bx2, by2, bladeColor, 3.0f);
+            }
         }
-        drawCircle(spinnerX, spinnerY, spinnerRadius * bot.spinnerSpeed + spinnerRadius * 0.3f,
-                   spinnerColor, true);
+
+        // Metal rim
+        drawCircleOutline(spinnerX, spinnerY, spinnerRadius, {180, 180, 190, 255}, 2.0f);
     }
     else if (weapon.name == "Clamp") {
         // Draw clamp jaws
@@ -920,19 +936,64 @@ void Renderer::drawPowerup(const Powerup& powerup, float offsetX, float offsetY)
 }
 
 void Renderer::drawCombatEvent(const CombatEvent& event, float offsetX, float offsetY) {
-    float alpha = 255.0f * (1.0f - event.timer / 0.5f);
+    float progress = event.timer / 0.5f;  // 0 to 1, fading
+    float alpha = 255.0f * std::min(1.0f, progress * 2.0f);  // Quick fade in, slow fade out
     if (alpha <= 0) return;
 
+    float x = offsetX + event.x;
+    float y = offsetY + event.y;
+
     switch (event.type) {
+        case CombatEvent::Type::Impact: {
+            // Spark explosion effect
+            float sparkAlpha = alpha * progress;
+            int numSparks = 8 + static_cast<int>(event.value / 20.0f);
+            float baseRadius = 8.0f + event.value * 0.15f;
+            float spread = (1.0f - progress) * 25.0f;  // Sparks spread outward
+
+            // Central flash
+            SDL_Color flashColor = {255, 255, 200, static_cast<Uint8>(sparkAlpha * 0.8f)};
+            drawCircle(x, y, baseRadius * progress, flashColor, true);
+
+            // Spark particles
+            for (int i = 0; i < numSparks; ++i) {
+                float angle = (i / static_cast<float>(numSparks)) * 2.0f * PI;
+                angle += event.value * 0.1f;  // Slight rotation based on force
+
+                float sparkDist = spread * (0.5f + 0.5f * std::sin(angle * 3.0f + event.value));
+                float sx = x + std::cos(angle) * sparkDist;
+                float sy = y + std::sin(angle) * sparkDist;
+
+                // Alternate colors: yellow, orange, white
+                SDL_Color sparkColor;
+                if (i % 3 == 0) {
+                    sparkColor = {255, 220, 100, static_cast<Uint8>(sparkAlpha)};
+                } else if (i % 3 == 1) {
+                    sparkColor = {255, 150, 50, static_cast<Uint8>(sparkAlpha)};
+                } else {
+                    sparkColor = {255, 255, 255, static_cast<Uint8>(sparkAlpha * 0.8f)};
+                }
+
+                float sparkSize = 2.0f + 2.0f * progress;
+                drawCircle(sx, sy, sparkSize, sparkColor, true);
+
+                // Spark trail
+                float trailX = x + std::cos(angle) * sparkDist * 0.5f;
+                float trailY = y + std::sin(angle) * sparkDist * 0.5f;
+                sparkColor.a = static_cast<Uint8>(sparkAlpha * 0.5f);
+                drawLine(sx, sy, trailX, trailY, sparkColor, 1.5f);
+            }
+            break;
+        }
         case CombatEvent::Type::Damage: {
             SDL_Color color = {255, 200, 50, static_cast<Uint8>(alpha)};
             float size = 10.0f + event.value * 0.3f;
-            drawCircle(offsetX + event.x, offsetY + event.y, size, color, false);
+            drawCircle(x, y, size, color, false);
             break;
         }
         case CombatEvent::Type::Death: {
             SDL_Color color = {255, 50, 50, static_cast<Uint8>(alpha)};
-            drawCircle(offsetX + event.x, offsetY + event.y, 30, color, false);
+            drawCircle(x, y, 30, color, false);
             break;
         }
         default:

@@ -13,6 +13,7 @@ struct BattleState;
 struct CombatEvent {
     enum class Type {
         Damage,
+        Impact,      // Spark effect at collision point
         Grab,
         GrabEscape,
         SpecialActivate,

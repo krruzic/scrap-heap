@@ -96,11 +96,14 @@ void GameSetupScreen::handleInput(GameContext& ctx) {
     auto& input = InputManager::instance();
     const auto& keyboard = input.getKeyboard();
 
+    // Track which controllers already triggered a join this frame to prevent doubles
+    bool controllerJoinedThisFrame[8] = {false};
+
     // Check for any controller pressing A to join
     for (int c = 0; c < 8; ++c) {
         ControllerState* controller = input.getController(c);
         if (!controller || !controller->connected) continue;
-        if (controller->playerSlot >= 0) continue;  // Already assigned
+        if (controller->playerSlot >= 0) continue;  // Already assigned to a slot
 
         if (controller->buttonAPressed()) {
             // Find empty slot
@@ -109,13 +112,14 @@ void GameSetupScreen::handleInput(GameContext& ctx) {
                     slots[s].state = PlayerSlotState::Configuring;
                     slots[s].controllerIndex = c;
                     input.assignController(c, s);
+                    controllerJoinedThisFrame[c] = true;
                     break;
                 }
             }
         }
     }
 
-    // Keyboard player (slot 0)
+    // Keyboard player - can only join if no keyboard player exists yet
     bool keyboardUsed = false;
     for (int s = 0; s < 4; ++s) {
         if (slots[s].controllerIndex == -1 && slots[s].state != PlayerSlotState::Empty) {
@@ -124,6 +128,7 @@ void GameSetupScreen::handleInput(GameContext& ctx) {
         }
     }
 
+    // Only allow keyboard join with Enter key (not Space, to avoid conflicts)
     if (!keyboardUsed && keyboard.enterPressed()) {
         for (int s = 0; s < 4; ++s) {
             if (slots[s].state == PlayerSlotState::Empty) {
