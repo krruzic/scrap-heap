@@ -83,13 +83,12 @@ void StormManager::update(Storm& storm, const StageDef& stage, float matchTimer,
     if (storm.bottom > storm.targetBottom) storm.bottom = std::max(storm.bottom - speed, storm.targetBottom);
 }
 
-void StormManager::applyDamage(Storm& storm, std::vector<Bot>& bots,
+int StormManager::applyDamage(Storm& storm, std::vector<Bot>& bots,
                                std::vector<CombatEvent>& events, float dt) {
-    if (!storm.active) return;
+    if (!storm.active) return -1;
 
     float damagePercent = storm.getDamagePercent();
-    static float damageEventTimer = 0.0f;
-    damageEventTimer += dt;
+    int stormVictim = -1;
 
     for (auto& bot : bots) {
         if (!bot.isAlive || bot.isRespawning) continue;
@@ -99,19 +98,11 @@ void StormManager::applyDamage(Storm& storm, std::vector<Bot>& bots,
             float damage = (damagePercent / 100.0f) * bot.maxHealth * dt * overlap;
             bot.health -= damage;
 
-            if (damageEventTimer >= 0.5f) {
-                CombatEvent event;
-                event.type = CombatEvent::Type::Damage;
-                event.x = bot.x;
-                event.y = bot.y;
-                event.value = damage * 10;
-                event.timer = 0.5f;
-                events.push_back(event);
-            }
-
             if (bot.health <= 0) {
                 bot.health = 0;
                 bot.isAlive = false;
+                stormVictim = bot.playerIndex;
+
                 CombatEvent deathEvent;
                 deathEvent.type = CombatEvent::Type::Death;
                 deathEvent.x = bot.x;
@@ -122,7 +113,7 @@ void StormManager::applyDamage(Storm& storm, std::vector<Bot>& bots,
         }
     }
 
-    if (damageEventTimer >= 0.5f) damageEventTimer = 0.0f;
+    return stormVictim;
 }
 
 void StormManager::render(const Storm& storm, const StageDef& stage,
@@ -134,8 +125,9 @@ void StormManager::render(const Storm& storm, const StageDef& stage,
     float pulse = 0.7f + 0.3f * std::sin(storm.pulseTimer * 2.0f);
     float fastPulse = 0.5f + 0.5f * std::sin(storm.animTimer * 5.0f);
 
-    uint8_t baseAlpha = static_cast<uint8_t>(100 + 30 * pulse);
-    SDL_Color stormBase = {30, 10, 60, baseAlpha};
+    // Very translucent base layer (~25% opacity)
+    uint8_t baseAlpha = static_cast<uint8_t>(50 + 15 * pulse);
+    SDL_Color stormBase = {40, 20, 80, baseAlpha};
 
     if (storm.left > 0)
         r.drawRect(ox, oy, storm.left, stage.height, stormBase, true);
@@ -146,8 +138,9 @@ void StormManager::render(const Storm& storm, const StageDef& stage,
     if (storm.bottom < stage.height)
         r.drawRect(ox + storm.left, oy + storm.bottom, storm.right - storm.left, stage.height - storm.bottom, stormBase, true);
 
-    uint8_t energyAlpha = static_cast<uint8_t>(30 + 25 * fastPulse);
-    SDL_Color energyColor = {80, 40, 150, energyAlpha};
+    // Subtle energy overlay (~15% opacity)
+    uint8_t energyAlpha = static_cast<uint8_t>(20 + 20 * fastPulse);
+    SDL_Color energyColor = {100, 50, 180, energyAlpha};
 
     if (storm.left > 0)
         r.drawRect(ox, oy, storm.left, stage.height, energyColor, true);
@@ -158,6 +151,7 @@ void StormManager::render(const Storm& storm, const StageDef& stage,
     if (storm.bottom < stage.height)
         r.drawRect(ox + storm.left, oy + storm.bottom, storm.right - storm.left, stage.height - storm.bottom, energyColor, true);
 
+    // Lightning bolts
     if (storm.left > 0)
         drawStormLightning(ox, oy, storm.left, stage.height, storm.animTimer);
     if (storm.right < stage.width)
@@ -167,8 +161,9 @@ void StormManager::render(const Storm& storm, const StageDef& stage,
     if (storm.bottom < stage.height)
         drawStormLightning(ox + storm.left, oy + storm.bottom, storm.right - storm.left, stage.height - storm.bottom, storm.animTimer);
 
-    SDL_Color borderColor = {100, 200, 255, static_cast<uint8_t>(180 + 55 * fastPulse)};
-    float borderThickness = 3.0f + 2.0f * pulse;
+    // Border
+    SDL_Color borderColor = {120, 180, 255, static_cast<uint8_t>(150 + 60 * fastPulse)};
+    float borderThickness = 2.0f + 1.5f * pulse;
     r.drawRectOutline(ox + storm.left, oy + storm.top, storm.right - storm.left, storm.bottom - storm.top, borderColor, borderThickness);
 }
 
@@ -176,7 +171,7 @@ void StormManager::drawStormLightning(float zoneX, float zoneY, float zoneW, flo
     if (zoneW < 5 || zoneH < 5) return;
 
     auto& r = Renderer::instance();
-    int numBolts = std::min(static_cast<int>((zoneW * zoneH) / 3000.0f) + 2, 8);
+    int numBolts = std::min(static_cast<int>((zoneW * zoneH) / 4000.0f) + 1, 6);
 
     for (int b = 0; b < numBolts; ++b) {
         float boltSeed = animTimer * 3.0f + b * 7.3f;
@@ -184,21 +179,21 @@ void StormManager::drawStormLightning(float zoneX, float zoneY, float zoneW, flo
         float boltY = zoneY + zoneH * (0.1f + 0.8f * std::abs(std::cos(boltSeed * 2.3f)));
 
         float flicker = std::sin(animTimer * 20.0f + b * 4.1f);
-        if (flicker < 0.2f) continue;
+        if (flicker < 0.3f) continue;
 
-        uint8_t boltAlpha = static_cast<uint8_t>(120 + 80 * flicker);
-        SDL_Color boltColor = (b % 3 == 0) ? SDL_Color{150, 220, 255, boltAlpha} :
-                              (b % 3 == 1) ? SDL_Color{220, 180, 255, boltAlpha} :
+        uint8_t boltAlpha = static_cast<uint8_t>(80 + 60 * flicker);
+        SDL_Color boltColor = (b % 3 == 0) ? SDL_Color{150, 200, 255, boltAlpha} :
+                              (b % 3 == 1) ? SDL_Color{200, 160, 255, boltAlpha} :
                                              SDL_Color{255, 255, 255, boltAlpha};
 
-        float segLen = 15.0f + 10.0f * std::sin(boltSeed);
+        float segLen = 12.0f + 8.0f * std::sin(boltSeed);
         float x1 = boltX, y1 = boltY;
 
-        for (int seg = 0; seg < 4; ++seg) {
+        for (int seg = 0; seg < 3; ++seg) {
             float angle = -1.57f + std::sin(boltSeed + seg * 2.1f) * 0.8f;
             float x2 = x1 + std::cos(angle) * segLen;
             float y2 = y1 + std::sin(angle) * segLen;
-            r.drawLine(x1, y1, x2, y2, boltColor, 2.0f);
+            r.drawLine(x1, y1, x2, y2, boltColor, 1.5f);
             x1 = x2;
             y1 = y2;
         }

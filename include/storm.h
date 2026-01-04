@@ -64,8 +64,8 @@ public:
     // Update storm state
     static void update(Storm& storm, const StageDef& stage, float matchTimer, float dt);
 
-    // Apply damage to bots outside safe zone
-    static void applyDamage(Storm& storm, std::vector<Bot>& bots,
+    // Apply damage to bots outside safe zone, returns player index of storm victim (-1 if none)
+    static int applyDamage(Storm& storm, std::vector<Bot>& bots,
                            std::vector<CombatEvent>& events, float dt);
 
     // Render the storm effect

@@ -400,14 +400,17 @@ void BattleManager::updateShrinkingWall(BattleState& state, float dt) {
 void BattleManager::applyWallDamage(BattleState& state, float dt) {
     if (!state.wall.active) return;
 
+    float damagePercent;
+    if (state.wall.currentPhase <= 1) damagePercent = 1.0f;
+    else if (state.wall.currentPhase == 2) damagePercent = 3.0f;
+    else damagePercent = 5.0f;
+
     for (auto& bot : state.bots) {
-        if (!bot.isAlive) continue;
+        if (!bot.isAlive || bot.isRespawning) continue;
 
         if (state.isOutsideSafeZone(bot.x, bot.y)) {
-            float damage = state.wall.damagePerSecond * dt;
+            float damage = (damagePercent / 100.0f) * bot.maxHealth * dt;
             bot.health -= damage;
-
-            // Track damage taken
             state.botStats[bot.playerIndex].damageTaken += damage;
 
             if (bot.health <= 0) {
@@ -419,9 +422,18 @@ void BattleManager::applyWallDamage(BattleState& state, float dt) {
                 event.x = bot.x;
                 event.y = bot.y;
                 event.targetBot = bot.playerIndex;
-                event.sourceBot = -1;  // Wall kill (no player gets credit)
+                event.sourceBot = -1;
                 event.timer = 1.0f;
                 state.combatEvents.push_back(event);
+
+                for (auto& otherBot : state.bots) {
+                    if (otherBot.playerIndex != bot.playerIndex && otherBot.isAlive) {
+                        state.botStats[otherBot.playerIndex].kills++;
+                        state.killPopups.push_back({otherBot.playerIndex, KillPopup::DURATION});
+                    }
+                }
+
+                state.wall.reset(state.stage.width, state.stage.height);
             }
         }
     }
@@ -755,9 +767,8 @@ void BattleManager::renderShrinkingWall(const BattleState& state) {
     float safeW = state.wall.right - state.wall.left;
     float safeH = state.wall.bottom - state.wall.top;
 
-    // === Layer 1: Dense storm background (~80% opacity) ===
-    uint8_t baseAlpha = static_cast<uint8_t>(190 + 30 * pulse);
-    SDL_Color stormBase = {25, 5, 50, baseAlpha};
+    uint8_t baseAlpha = static_cast<uint8_t>(50 + 15 * pulse);
+    SDL_Color stormBase = {40, 20, 80, baseAlpha};
 
     // Draw storm zone rectangles (the dangerous areas outside safe zone)
     // Left zone
@@ -781,9 +792,8 @@ void BattleManager::renderShrinkingWall(const BattleState& state) {
                          state.stage.height - state.wall.bottom, stormBase, true);
     }
 
-    // === Layer 2: Pulsing energy overlay ===
-    uint8_t energyAlpha = static_cast<uint8_t>(60 + 40 * fastPulse);
-    SDL_Color energyColor = {80, 40, 150, energyAlpha};
+    uint8_t energyAlpha = static_cast<uint8_t>(20 + 20 * fastPulse);
+    SDL_Color energyColor = {100, 50, 180, energyAlpha};
 
     if (state.wall.left > 0) {
         renderer.drawRect(ox, oy, state.wall.left, state.stage.height, energyColor, true);
@@ -821,7 +831,7 @@ void BattleManager::renderShrinkingWall(const BattleState& state) {
             float flicker = std::sin(state.wall.animTimer * 20.0f + b * 4.1f);
             if (flicker < 0.2f) continue;
 
-            uint8_t boltAlpha = static_cast<uint8_t>(150 + 105 * flicker);
+            uint8_t boltAlpha = static_cast<uint8_t>(80 + 60 * flicker);
 
             // Alternate colors
             SDL_Color boltColor = (b % 3 == 0) ?
