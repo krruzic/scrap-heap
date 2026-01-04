@@ -18,16 +18,9 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
 
     // Skip movement if grabbed (can wiggle slightly)
     if (bot.grabState == GrabState::Grabbed) {
-        // Very limited movement when grabbed
-        float moveX = 0.0f, moveY = 0.0f;
-        if (bot.inputLeft) moveX -= 1.0f;
-        if (bot.inputRight) moveX += 1.0f;
-        if (bot.inputForward) moveY -= 1.0f;
-        if (bot.inputBack) moveY += 1.0f;
-
         float wiggleSpeed = bot.acceleration * 0.1f;
-        bot.velX += moveX * wiggleSpeed * dt;
-        bot.velY += moveY * wiggleSpeed * dt;
+        if (bot.inputLeft) bot.velX -= wiggleSpeed * dt;
+        if (bot.inputRight) bot.velX += wiggleSpeed * dt;
         bot.velX *= 0.8f;
         bot.velY *= 0.8f;
         return;
@@ -35,9 +28,9 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
 
     const auto& engine = ComponentRegistry::instance().getEngine(bot.engineIndex);
 
-    // Calculate effective stats with modifiers
-    float effectiveMaxSpeed = bot.maxSpeed;
-    float effectiveAccel = bot.acceleration;
+    // Calculate effective stats with modifiers - MUCH SLOWER base speed
+    float effectiveMaxSpeed = bot.maxSpeed * 0.4f;  // Slower tank-like speed
+    float effectiveAccel = bot.acceleration * 0.5f;
 
     // Speed boost powerup
     if (bot.speedBoostTimer > 0) {
@@ -53,8 +46,8 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
 
     // Boost special
     if (bot.boostActive) {
-        effectiveAccel *= 1.5f;
-        effectiveMaxSpeed *= 1.2f;
+        effectiveAccel *= 2.0f;
+        effectiveMaxSpeed *= 1.5f;
     }
 
     // Reduced speed while grabbing
@@ -63,49 +56,36 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
         effectiveAccel *= 0.5f;
     }
 
-    // === STANDARD ARCADE MOVEMENT ===
-    // Get input direction (8-directional or analog)
-    float inputX = 0.0f, inputY = 0.0f;
+    // === TANK CONTROLS ===
+    // Steering: left stick X or d-pad left/right
+    float steerInput = bot.stickX;
+    if (bot.inputLeft) steerInput = -1.0f;
+    if (bot.inputRight) steerInput = 1.0f;
 
-    // Digital input
-    if (bot.inputLeft) inputX -= 1.0f;
-    if (bot.inputRight) inputX += 1.0f;
-    if (bot.inputForward) inputY -= 1.0f;  // Up is negative Y
-    if (bot.inputBack) inputY += 1.0f;
+    // Throttle and reverse from shoulder buttons/triggers
+    float driveInput = bot.throttle - bot.reverse;
 
-    // Analog stick overrides if significant
-    if (std::abs(bot.stickX) > 0.2f || std::abs(bot.stickY) > 0.2f) {
-        inputX = bot.stickX;
-        inputY = bot.stickY;
-    }
+    // Turn speed based on engine torque - slower for tank feel
+    float turnRate = (engine.torque / 150.0f) * 2.5f;
 
-    // Normalize diagonal movement
-    float inputMag = std::sqrt(inputX * inputX + inputY * inputY);
-    if (inputMag > 1.0f) {
-        inputX /= inputMag;
-        inputY /= inputMag;
-        inputMag = 1.0f;
-    }
-
-    // Apply acceleration in input direction
-    if (inputMag > 0.1f) {
-        bot.velX += inputX * effectiveAccel * dt;
-        bot.velY += inputY * effectiveAccel * dt;
-
-        // Rotate to face movement direction (smooth turning)
-        float targetAngle = std::atan2(inputY, inputX);
-        float angleDiff = normalizeAngle(targetAngle - bot.angle);
-
-        // Torque affects turn speed
-        float turnRate = engine.torque / 150.0f * 8.0f;  // Faster turning
-        if (std::abs(angleDiff) < turnRate * dt) {
-            bot.angle = targetAngle;
-        } else if (angleDiff > 0) {
-            bot.angle += turnRate * dt;
-        } else {
-            bot.angle -= turnRate * dt;
-        }
+    // Apply turning (only when moving or with significant input)
+    float currentSpeed = std::sqrt(bot.velX * bot.velX + bot.velY * bot.velY);
+    if (std::abs(steerInput) > 0.1f) {
+        // Can turn in place at reduced rate, or while moving
+        float turnMultiplier = 0.4f + (currentSpeed / effectiveMaxSpeed) * 0.6f;
+        turnMultiplier = std::min(1.0f, turnMultiplier);
+        bot.angle += steerInput * turnRate * turnMultiplier * dt;
         bot.angle = normalizeAngle(bot.angle);
+    }
+
+    // Apply acceleration in facing direction
+    if (std::abs(driveInput) > 0.1f) {
+        Vec2 facing = bot.getFacingVector();
+
+        // Forward or backward
+        float accel = effectiveAccel * driveInput;
+        bot.velX += facing.x * accel * dt;
+        bot.velY += facing.y * accel * dt;
     }
 
     // Clamp to max speed
@@ -116,9 +96,9 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
         bot.velY *= scale;
     }
 
-    // Apply position
-    bot.x += bot.velX * dt * 60.0f;
-    bot.y += bot.velY * dt * 60.0f;
+    // Apply position (slower multiplier for tank feel)
+    bot.x += bot.velX * dt * 40.0f;
+    bot.y += bot.velY * dt * 40.0f;
 }
 
 void Physics::applyFriction(Bot& bot, float dt) {

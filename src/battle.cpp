@@ -657,11 +657,6 @@ void BattleManager::render(const BattleState& state) {
         renderer.drawMine(mine, state.cameraOffsetX, state.cameraOffsetY);
     }
 
-    // Draw smoke clouds
-    for (const auto& cloud : state.smokeClouds) {
-        renderer.drawSmokeCloud(cloud, state.cameraOffsetX, state.cameraOffsetY);
-    }
-
     // Draw grab tethers
     for (const auto& bot : state.bots) {
         if (bot.grabState == GrabState::Grabbing) {
@@ -687,7 +682,12 @@ void BattleManager::render(const BattleState& state) {
         renderer.drawCombatEvent(event, state.cameraOffsetX, state.cameraOffsetY);
     }
 
-    // Draw shrinking wall ON TOP of bots so storm is visible over them
+    // Draw smoke clouds ON TOP of bots
+    for (const auto& cloud : state.smokeClouds) {
+        renderer.drawSmokeCloud(cloud, state.cameraOffsetX, state.cameraOffsetY);
+    }
+
+    // Draw shrinking wall ON TOP of everything
     renderShrinkingWall(state);
 
     // Draw HUD

@@ -44,6 +44,12 @@ struct ControllerState {
     float rightStickX = 0.0f;
     float rightStickY = 0.0f;
 
+    // Triggers/shoulders for tank controls
+    float leftTrigger = 0.0f;   // Reverse
+    float rightTrigger = 0.0f;  // Throttle
+    bool leftShoulder = false;
+    bool rightShoulder = false;
+
     // Helpers for detecting button presses (not just held)
     bool dpadUpPressed() const { return dpadUp && !prevDpadUp; }
     bool dpadDownPressed() const { return dpadDown && !prevDpadDown; }

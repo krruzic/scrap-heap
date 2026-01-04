@@ -1023,9 +1023,46 @@ void Renderer::drawMine(const Mine& mine, float offsetX, float offsetY) {
 }
 
 void Renderer::drawSmokeCloud(const SmokeCloud& cloud, float offsetX, float offsetY) {
-    float alpha = 150.0f * (cloud.timer / SmokeCloud::DURATION);
-    SDL_Color color = {100, 100, 100, static_cast<Uint8>(alpha)};
-    drawCircle(offsetX + cloud.x, offsetY + cloud.y, cloud.radius, color, true);
+    float lifeRatio = cloud.timer / SmokeCloud::DURATION;
+    float baseAlpha = 180.0f * lifeRatio;
+    float cx = offsetX + cloud.x;
+    float cy = offsetY + cloud.y;
+
+    // Draw multiple overlapping smoke puffs for realistic smoke effect
+    int numPuffs = 8;
+    for (int i = 0; i < numPuffs; ++i) {
+        // Consistent offset based on puff index and cloud position
+        float angle = (i * 0.785f) + (cloud.x + cloud.y) * 0.01f;
+        float dist = cloud.radius * (0.3f + (i % 3) * 0.2f);
+        float puffX = cx + std::cos(angle) * dist;
+        float puffY = cy + std::sin(angle) * dist;
+
+        // Varying sizes for each puff
+        float puffRadius = cloud.radius * (0.4f + (i % 4) * 0.15f);
+
+        // Varying alpha for depth effect
+        float puffAlpha = baseAlpha * (0.5f + (i % 3) * 0.2f);
+
+        // Slight color variation (grey to darker grey)
+        uint8_t grey = 80 + (i % 4) * 15;
+        SDL_Color puffColor = {grey, grey, static_cast<uint8_t>(grey + 10), static_cast<Uint8>(puffAlpha)};
+
+        drawCircle(puffX, puffY, puffRadius, puffColor, true);
+    }
+
+    // Central darker core
+    SDL_Color coreColor = {60, 60, 70, static_cast<Uint8>(baseAlpha * 0.7f)};
+    drawCircle(cx, cy, cloud.radius * 0.5f, coreColor, true);
+
+    // Outer wisps - lighter
+    for (int i = 0; i < 4; ++i) {
+        float angle = i * 1.57f + cloud.timer * 0.5f;  // Slow rotation
+        float dist = cloud.radius * 0.8f;
+        float wispX = cx + std::cos(angle) * dist;
+        float wispY = cy + std::sin(angle) * dist;
+        SDL_Color wispColor = {120, 120, 130, static_cast<Uint8>(baseAlpha * 0.3f)};
+        drawCircle(wispX, wispY, cloud.radius * 0.3f, wispColor, true);
+    }
 }
 
 void Renderer::drawGrabTether(const Bot& grabber, const Bot& grabbed,

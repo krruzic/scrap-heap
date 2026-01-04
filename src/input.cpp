@@ -100,7 +100,17 @@ void InputManager::updateControllerState(ControllerState& controller) {
     controller.rightStickX = applyDeadzone(rx);
     controller.rightStickY = applyDeadzone(ry);
 
-    // Left stick can act as d-pad
+    // Triggers for throttle/reverse
+    float lt = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) / 32767.0f;
+    float rt = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) / 32767.0f;
+    controller.leftTrigger = std::max(0.0f, lt);
+    controller.rightTrigger = std::max(0.0f, rt);
+
+    // Shoulder buttons as alternative throttle/reverse
+    controller.leftShoulder = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+    controller.rightShoulder = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+
+    // Left stick can act as d-pad (for menus only, not movement)
     if (controller.leftStickY < -0.5f) controller.dpadUp = true;
     if (controller.leftStickY > 0.5f) controller.dpadDown = true;
     if (controller.leftStickX < -0.5f) controller.dpadLeft = true;
@@ -266,23 +276,42 @@ void InputManager::applyInputToBot(Bot& bot, int playerSlot) {
     bot.inputPowerup = false;
     bot.stickX = 0.0f;
     bot.stickY = 0.0f;
+    bot.throttle = 0.0f;
+    bot.reverse = 0.0f;
 
     if (controller) {
-        bot.inputForward = controller->dpadUp;
-        bot.inputBack = controller->dpadDown;
+        // Steering with left stick
+        bot.stickX = controller->leftStickX;
+        bot.stickY = controller->leftStickY;
+
+        // Tank controls: Right shoulder/trigger = throttle, Left = reverse
+        if (controller->rightShoulder) {
+            bot.throttle = 1.0f;
+        } else if (controller->rightTrigger > 0.1f) {
+            bot.throttle = controller->rightTrigger;
+        }
+
+        if (controller->leftShoulder) {
+            bot.reverse = 1.0f;
+        } else if (controller->leftTrigger > 0.1f) {
+            bot.reverse = controller->leftTrigger;
+        }
+
+        // D-pad for digital turning (legacy support)
         bot.inputLeft = controller->dpadLeft;
         bot.inputRight = controller->dpadRight;
+
+        // Buttons
         bot.inputWeapon = controller->buttonA;
         bot.inputSpecial = controller->buttonB;
         bot.inputPowerup = controller->buttonX || controller->buttonY;
-        bot.stickX = controller->leftStickX;
-        bot.stickY = controller->leftStickY;
     }
 
     // Player 0 can also use keyboard
     if (playerSlot == 0) {
-        if (keyboard.up) bot.inputForward = true;
-        if (keyboard.down) bot.inputBack = true;
+        // W/Up = throttle, S/Down = reverse
+        if (keyboard.up) bot.throttle = 1.0f;
+        if (keyboard.down) bot.reverse = 1.0f;
         if (keyboard.left) bot.inputLeft = true;
         if (keyboard.right) bot.inputRight = true;
         if (keyboard.space) bot.inputWeapon = true;

@@ -448,13 +448,19 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
         return;
     }
 
-    // === CONFIGURING STATE ===
+    // === CONFIGURING STATE - NEW LAYOUT ===
+    // Parts on left, Bot preview on right (bigger), Stats at bottom
     auto& registry = ComponentRegistry::instance();
     const char* optionLabels[] = {"TAG", "ENGINE", "FRAME", "WEAPON", "SPECIAL", "COLOR", "OK"};
 
-    // Left side: options
-    float optionsWidth = width * 0.52f;
-    float lineHeight = 22.0f;
+    // Layout dimensions
+    float statsHeight = 50.0f;  // Height for stats bar at bottom
+    float contentHeight = bayH - 38 - statsHeight;  // Above stats, below header
+    float optionsWidth = width * 0.38f;  // Left panel narrower
+    float previewWidth = bayW - optionsWidth - 8;  // Right panel wider
+
+    // === LEFT SIDE: Parts list ===
+    float lineHeight = 20.0f;
     float labelX = bayX + 10;
     float valueX = bayX + optionsWidth - 8;
     float contentY = bayY + 32;
@@ -471,7 +477,7 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
                 static_cast<Uint8>(playerColor.b * 0.3f),
                 255
             };
-            renderer.drawRect(labelX - 2, lineY - 1, optionsWidth - 8, lineHeight - 2, highlightBg, true);
+            renderer.drawRect(labelX - 2, lineY - 1, optionsWidth - 12, lineHeight - 2, highlightBg, true);
         }
 
         SDL_Color labelColor = selected ? playerColor : SDL_Color{130, 130, 140, 255};
@@ -486,38 +492,38 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
         switch (static_cast<ConfigOption>(opt)) {
             case ConfigOption::Tag: {
                 std::string tagName = slot.getDisplayName(slotIndex);
-                if (tagName.length() > 6) tagName = tagName.substr(0, 5) + "..";
+                if (tagName.length() > 5) tagName = tagName.substr(0, 4) + "..";
                 value = "<" + tagName + ">";
                 break;
             }
             case ConfigOption::Engine: {
                 std::string name = registry.getEngine(slot.engineIndex).name;
-                if (name.length() > 6) name = name.substr(0, 5) + "..";
+                if (name.length() > 5) name = name.substr(0, 4) + "..";
                 value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Frame: {
                 std::string name = registry.getFrame(slot.frameIndex).name;
-                if (name.length() > 6) name = name.substr(0, 5) + "..";
+                if (name.length() > 5) name = name.substr(0, 4) + "..";
                 value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Weapon: {
                 std::string name = registry.getWeapon(slot.weaponIndex).name;
-                if (name.length() > 6) name = name.substr(0, 5) + "..";
+                if (name.length() > 5) name = name.substr(0, 4) + "..";
                 value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Special: {
                 std::string name = registry.getSpecial(slot.specialIndex).name;
-                if (name.length() > 6) name = name.substr(0, 5) + "..";
+                if (name.length() > 5) name = name.substr(0, 4) + "..";
                 value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Color:
                 // Draw color swatch
-                renderer.drawRect(valueX - 35, lineY + 2, 30, 14, playerColor, true);
-                renderer.drawRectOutline(valueX - 35, lineY + 2, 30, 14, {80, 80, 90, 255}, 1.0f);
+                renderer.drawRect(valueX - 30, lineY + 2, 24, 12, playerColor, true);
+                renderer.drawRectOutline(valueX - 30, lineY + 2, 24, 12, {80, 80, 90, 255}, 1.0f);
                 value = "";
                 break;
             case ConfigOption::OK:
@@ -533,9 +539,18 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
         }
     }
 
-    // Right side: bot preview in garage bay
-    float previewX = bayX + optionsWidth + (bayW - optionsWidth) / 2.0f;
-    float previewY = bayY + 65;
+    // === RIGHT SIDE: Bot preview (BIGGER) ===
+    float previewX = bayX + optionsWidth + previewWidth / 2.0f;
+    float previewY = bayY + 32 + contentHeight / 2.0f - 10;
+
+    // Preview area background
+    SDL_Color previewBg = {
+        static_cast<Uint8>(playerColor.r * 0.1f),
+        static_cast<Uint8>(playerColor.g * 0.1f),
+        static_cast<Uint8>(playerColor.b * 0.1f),
+        255
+    };
+    renderer.drawRect(bayX + optionsWidth + 4, bayY + 32, previewWidth - 8, contentHeight - 4, previewBg, true);
 
     // Preview platform
     SDL_Color platformColor = {
@@ -544,16 +559,16 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
         static_cast<Uint8>(playerColor.b * 0.25f),
         255
     };
-    float platW = bayW - optionsWidth - 16;
-    renderer.drawRect(previewX - platW / 2, previewY + 35, platW, 8, platformColor, true);
+    float platW = previewWidth - 24;
+    renderer.drawRect(previewX - platW / 2, previewY + 45, platW, 8, platformColor, true);
 
-    // Bot preview
-    renderBotPreview(slot, previewX, previewY, 45.0f);
+    // Bot preview - MUCH BIGGER (65 instead of 45)
+    renderBotPreview(slot, previewX, previewY, 65.0f);
 
-    // Mini stats below preview
+    // === BOTTOM: Stats bar spanning full width ===
+    float statsY = bayY + bayH - statsHeight - 4;
     BotStats stats = calculateBotStats(slot);
-    float statsWidth = bayW - optionsWidth - 12;
-    renderStatsDisplay(stats, bayX + optionsWidth + 4, bayY + 130, statsWidth, playerColor);
+    renderStatsCompact(stats, bayX + 8, statsY, bayW - 16, playerColor);
 }
 
 // StageSelectScreen
@@ -762,23 +777,24 @@ BotStats GameSetupScreen::calculateBotStats(const PlayerSlot& slot) const {
 
     BotStats stats;
 
-    // Speed: based on engine power and torque (0-1 normalized)
-    // Max power is ~2.0, max torque is ~2.0
-    float speedRaw = (engine.power * 0.6f + engine.torque * 0.4f);
-    stats.speed = std::min(1.0f, speedRaw / 2.0f);
-
-    // Damage: based on weapon damage (0-1 normalized)
-    // Max damage is ~25
-    stats.damage = std::min(1.0f, weapon.damage / 25.0f);
-
-    // Armor: based on frame armor (0-1 normalized)
-    // Armor ranges from 0.8 to 2.0
-    stats.armor = std::min(1.0f, (frame.armor - 0.5f) / 1.5f);
-
-    // Weight: combined weight (0-1 normalized)
-    // Total weight can range from ~3 to ~10
+    // Speed: based on engine power (120-350) and torque (80-250)
+    // Higher power = faster, but weight affects it
     float totalWeight = frame.weight + engine.weight + weapon.weight;
-    stats.weight = std::min(1.0f, (totalWeight - 2.0f) / 8.0f);
+    float speedRaw = (engine.power * 0.6f + engine.torque * 0.4f) / totalWeight;
+    // speedRaw ranges ~1.5 (slow heavy) to ~8 (fast light)
+    stats.speed = std::min(1.0f, std::max(0.0f, (speedRaw - 1.0f) / 7.0f));
+
+    // Damage: based on weapon damage (5-35)
+    stats.damage = std::min(1.0f, std::max(0.0f, weapon.damage / 35.0f));
+
+    // Armor: based on frame armor (0.5 to 1.3)
+    stats.armor = std::min(1.0f, std::max(0.0f, (frame.armor - 0.4f) / 1.0f));
+
+    // Weight: combined weight normalized (42-130 range)
+    // Show as proportion of max possible weight
+    float minWeight = 42.0f;  // Roach + Standard Engine + Whip
+    float maxWeight = 135.0f; // Brick + Omni-Drive + Battering Ram
+    stats.weight = std::min(1.0f, std::max(0.0f, (totalWeight - minWeight) / (maxWeight - minWeight)));
 
     return stats;
 }
@@ -850,6 +866,60 @@ void GameSetupScreen::renderStatsDisplay(const BotStats& stats, float x, float y
         // Bar border
         SDL_Color barBorder = {80, 80, 100, 255};
         renderer.drawRectOutline(barX, lineY + 2, barWidth, barHeight, barBorder, 1.0f);
+    }
+}
+
+void GameSetupScreen::renderStatsCompact(const BotStats& stats, float x, float y, float width, SDL_Color playerColor) {
+    auto& renderer = Renderer::instance();
+
+    // Horizontal compact layout - 4 stats in a row
+    struct StatInfo {
+        const char* icon;
+        float value;
+        SDL_Color color;
+    };
+
+    StatInfo statInfos[] = {
+        {"SPD", stats.speed,  {100, 200, 255, 255}},   // Blue
+        {"DMG", stats.damage, {255, 100, 100, 255}},   // Red
+        {"ARM", stats.armor,  {100, 255, 150, 255}},   // Green
+        {"WGT", stats.weight, {200, 150, 100, 255}}    // Brown
+    };
+
+    // Background
+    SDL_Color panelBg = {25, 25, 35, 220};
+    renderer.drawRect(x, y, width, 45, panelBg, true);
+
+    // Border accent
+    SDL_Color borderColor = {
+        static_cast<Uint8>(playerColor.r / 2),
+        static_cast<Uint8>(playerColor.g / 2),
+        static_cast<Uint8>(playerColor.b / 2), 200};
+    renderer.drawRectOutline(x, y, width, 45, borderColor, 1.0f);
+
+    float statWidth = width / 4.0f;
+    float barWidth = statWidth - 10;
+    float barHeight = 10.0f;
+
+    for (int i = 0; i < 4; ++i) {
+        float statX = x + i * statWidth + 5;
+        const auto& info = statInfos[i];
+
+        // Label
+        renderer.drawText(info.icon, statX + barWidth / 2, y + 4,
+                         renderer.getFontSmall(), info.color, TextAlign::Center);
+
+        // Bar background
+        SDL_Color barBg = {40, 40, 50, 255};
+        renderer.drawRect(statX, y + 20, barWidth, barHeight, barBg, true);
+
+        // Bar fill
+        float fillWidth = barWidth * info.value;
+        renderer.drawRect(statX, y + 20, fillWidth, barHeight, info.color, true);
+
+        // Bar border
+        SDL_Color barBorder = {60, 60, 80, 255};
+        renderer.drawRectOutline(statX, y + 20, barWidth, barHeight, barBorder, 1.0f);
     }
 }
 
@@ -958,6 +1028,72 @@ void GameSetupScreen::renderBotPreview(const PlayerSlot& slot, float centerX, fl
     float indicatorY = centerY + facingY * indicatorDist;
     SDL_Color indicatorColor = {255, 255, 255, 200};
     renderer.drawCircle(indicatorX, indicatorY, 3.0f, indicatorColor);
+
+    // === ENGINE VISUAL EFFECTS ===
+    const auto& engine = registry.getEngine(slot.engineIndex);
+    SDL_Color exhaustColor = {80, 80, 90, 255};
+    SDL_Color engineColor = {60, 60, 70, 255};
+
+    if (engine.name == "Standard") {
+        // Basic engine block at rear
+        float exW = bodyRadius * 0.3f;
+        float exH = bodyRadius * 0.4f;
+        renderer.drawRotatedRect(centerX - facingX * bodyRadius * 0.8f,
+                                centerY - facingY * bodyRadius * 0.8f,
+                                exW, exH, angle, engineColor);
+    } else if (engine.name == "Torque Monster") {
+        // Large engine housing
+        float exW = bodyRadius * 0.5f;
+        float exH = bodyRadius * 0.5f;
+        renderer.drawRotatedRect(centerX - facingX * bodyRadius * 0.7f,
+                                centerY - facingY * bodyRadius * 0.7f,
+                                exW, exH, angle, {70, 50, 30, 255});
+        // Big exhaust pipes
+        renderer.drawCircle(centerX - facingX * bodyRadius - bodyRadius * 0.25f,
+                           centerY - facingY * bodyRadius, 6.0f * scale, exhaustColor);
+        renderer.drawCircle(centerX - facingX * bodyRadius + bodyRadius * 0.25f,
+                           centerY - facingY * bodyRadius, 6.0f * scale, exhaustColor);
+    } else if (engine.name == "Dragster") {
+        // Streamlined rear with flame effects
+        float exW = bodyRadius * 0.6f;
+        float exH = bodyRadius * 0.25f;
+        renderer.drawRotatedRect(centerX - facingX * bodyRadius * 1.0f,
+                                centerY - facingY * bodyRadius * 1.0f,
+                                exW, exH, angle, {100, 40, 20, 255});
+        // Flame effect (orange-red circles)
+        SDL_Color flameOuter = {255, 100, 20, 150};
+        SDL_Color flameInner = {255, 200, 50, 200};
+        renderer.drawCircle(centerX - facingX * bodyRadius * 1.3f,
+                           centerY - facingY * bodyRadius * 1.3f, 8.0f * scale, flameOuter);
+        renderer.drawCircle(centerX - facingX * bodyRadius * 1.3f,
+                           centerY - facingY * bodyRadius * 1.3f, 4.0f * scale, flameInner);
+    } else if (engine.name == "Omni-Drive") {
+        // Wheel/thruster pods on sides
+        SDL_Color thrusterColor = {50, 100, 150, 255};
+        renderer.drawCircle(centerX - bodyRadius * 0.9f, centerY, 5.0f * scale, thrusterColor);
+        renderer.drawCircle(centerX + bodyRadius * 0.9f, centerY, 5.0f * scale, thrusterColor);
+        renderer.drawCircle(centerX, centerY - bodyRadius * 0.9f, 5.0f * scale, thrusterColor);
+        renderer.drawCircle(centerX, centerY + bodyRadius * 0.9f, 5.0f * scale, thrusterColor);
+    } else if (engine.name == "Gyro-Stabilized") {
+        // Central gyroscope ring
+        SDL_Color gyroOuter = {100, 100, 120, 255};
+        SDL_Color gyroInner = {150, 150, 200, 255};
+        renderer.drawCircleOutline(centerX, centerY, bodyRadius * 0.4f, gyroOuter, 3.0f);
+        renderer.drawCircle(centerX, centerY, bodyRadius * 0.15f, gyroInner);
+    } else if (engine.name == "Ramjet") {
+        // Side-mounted jet engines
+        SDL_Color jetColor = {80, 80, 100, 255};
+        float jetW = bodyRadius * 0.3f;
+        float jetH = bodyRadius * 0.7f;
+        renderer.drawRotatedRect(centerX - bodyRadius * 0.8f, centerY, jetW, jetH, angle, jetColor);
+        renderer.drawRotatedRect(centerX + bodyRadius * 0.8f, centerY, jetW, jetH, angle, jetColor);
+        // Jet flames
+        SDL_Color jetFlame = {100, 200, 255, 180};
+        renderer.drawCircle(centerX - bodyRadius * 0.8f - facingX * bodyRadius * 0.5f,
+                           centerY - facingY * bodyRadius * 0.5f, 4.0f * scale, jetFlame);
+        renderer.drawCircle(centerX + bodyRadius * 0.8f - facingX * bodyRadius * 0.5f,
+                           centerY - facingY * bodyRadius * 0.5f, 4.0f * scale, jetFlame);
+    }
 
     // Draw weapon based on type
     SDL_Color metalColor = {180, 180, 200, 255};

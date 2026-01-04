@@ -102,6 +102,9 @@ private:
     // Render stats display (like reference image)
     void renderStatsDisplay(const BotStats& stats, float x, float y, float width, SDL_Color playerColor);
 
+    // Render compact stats bar (horizontal layout for bottom of garage)
+    void renderStatsCompact(const BotStats& stats, float x, float y, float width, SDL_Color playerColor);
+
     // Render bot preview visualization
     void renderBotPreview(const PlayerSlot& slot, float centerX, float centerY, float size);
 };

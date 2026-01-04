@@ -92,8 +92,10 @@ struct Bot {
     bool inputSpecialPressed = false;
     bool inputPowerup = false;
     bool inputPowerupPressed = false;
-    float stickX = 0.0f;  // For analog stick
+    float stickX = 0.0f;  // For analog stick (steering)
     float stickY = 0.0f;
+    float throttle = 0.0f;  // 0-1 for forward
+    float reverse = 0.0f;   // 0-1 for backward
 
     // Identity
     int playerIndex = 0;
