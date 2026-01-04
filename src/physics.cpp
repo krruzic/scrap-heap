@@ -34,11 +34,12 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
     float powerToWeight = engine.power / bot.totalWeight;
 
     // Base max speed scaled by power-to-weight (higher power = faster)
-    float baseMaxSpeed = powerToWeight * 2.5f;
+    // Reduced for slower, more tactical gameplay
+    float baseMaxSpeed = powerToWeight * 1.2f;
 
     // Base acceleration - weight has stronger effect (heavier = sluggish)
     // High power engines accelerate faster, but heavy bots are slow to start
-    float baseAccelRate = (engine.power * 0.5f) / (bot.totalWeight * 1.2f);
+    float baseAccelRate = (engine.power * 0.3f) / (bot.totalWeight * 1.5f);
 
     // Ramjet-style engines (high power, low torque) have better top speed but slower accel
     // Dragster-style engines have both high speed and good accel
@@ -87,11 +88,12 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
 
     // Turn speed based on engine torque
     // Higher torque = faster turning, weight reduces it
-    float baseTurnRate = (engine.torque / bot.totalWeight) * 5.0f;
+    // Reduced significantly for tank-like feel
+    float baseTurnRate = (engine.torque / bot.totalWeight) * 1.8f;
 
     // Angular velocity smoothing - don't turn instantly
     float targetAngularVel = steerInput * baseTurnRate;
-    float angularAccel = 15.0f;  // How fast we reach target turn rate
+    float angularAccel = 6.0f;  // How fast we reach target turn rate (slower ramp)
 
     // Smoothly interpolate angular velocity
     float angularDiff = targetAngularVel - bot.angularVel;
@@ -145,9 +147,9 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
         bot.velY *= scale;
     }
 
-    // Apply position
-    bot.x += bot.velX * dt * 50.0f;
-    bot.y += bot.velY * dt * 50.0f;
+    // Apply position (multiplier affects overall game speed)
+    bot.x += bot.velX * dt * 35.0f;
+    bot.y += bot.velY * dt * 35.0f;
 }
 
 void Physics::applyFriction(Bot& bot, float dt) {
