@@ -457,8 +457,8 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
     // Layout dimensions
     float statsHeight = 50.0f;  // Height for stats bar at bottom
     float contentHeight = bayH - 38 - statsHeight;  // Above stats, below header
-    float optionsWidth = width * 0.38f;  // Left panel narrower
-    float previewWidth = bayW - optionsWidth - 8;  // Right panel wider
+    float optionsWidth = width * 0.55f;  // Left panel wider to fit names
+    float previewWidth = bayW - optionsWidth - 8;  // Right panel for bot preview
 
     // === LEFT SIDE: Parts list ===
     float lineHeight = 20.0f;
@@ -493,31 +493,31 @@ void GameSetupScreen::renderSlot(int slotIndex, float x, float y, float width, f
         switch (static_cast<ConfigOption>(opt)) {
             case ConfigOption::Tag: {
                 std::string tagName = slot.getDisplayName(slotIndex);
-                if (tagName.length() > 5) tagName = tagName.substr(0, 4) + "..";
+                if (tagName.length() > 12) tagName = tagName.substr(0, 11) + "..";
                 value = "<" + tagName + ">";
                 break;
             }
             case ConfigOption::Engine: {
                 std::string name = registry.getEngine(slot.engineIndex).name;
-                if (name.length() > 5) name = name.substr(0, 4) + "..";
+                if (name.length() > 12) name = name.substr(0, 11) + "..";
                 value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Frame: {
                 std::string name = registry.getFrame(slot.frameIndex).name;
-                if (name.length() > 5) name = name.substr(0, 4) + "..";
+                if (name.length() > 12) name = name.substr(0, 11) + "..";
                 value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Weapon: {
                 std::string name = registry.getWeapon(slot.weaponIndex).name;
-                if (name.length() > 5) name = name.substr(0, 4) + "..";
+                if (name.length() > 14) name = name.substr(0, 13) + "..";
                 value = "<" + name + ">";
                 break;
             }
             case ConfigOption::Special: {
                 std::string name = registry.getSpecial(slot.specialIndex).name;
-                if (name.length() > 5) name = name.substr(0, 4) + "..";
+                if (name.length() > 14) name = name.substr(0, 13) + "..";
                 value = "<" + name + ">";
                 break;
             }

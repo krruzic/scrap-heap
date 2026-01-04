@@ -70,32 +70,6 @@ public:
     // Get contact point between bots
     static Vec2 getContactPoint(const Bot& a, const Bot& b);
 
-private:
-    // Weapon-specific handlers
-    static void processSpinner(Bot& attacker, Bot& target,
-                              std::vector<CombatEvent>& events, float dt);
-    static void processClamp(Bot& attacker, Bot& target,
-                            std::vector<CombatEvent>& events, float dt);
-    static void processHammer(Bot& attacker, std::vector<Bot>& bots,
-                             std::vector<CombatEvent>& events, float dt);
-    static void processBatteringRam(Bot& attacker, Bot& target,
-                                   std::vector<CombatEvent>& events);
-    static void processFlail(Bot& attacker, Bot& target,
-                            std::vector<CombatEvent>& events, float dt);
-    static void processWhip(Bot& attacker, std::vector<Bot>& bots,
-                           std::vector<CombatEvent>& events, float dt);
-    static void processSawBlade(Bot& attacker, Bot& target,
-                               std::vector<CombatEvent>& events, float dt);
-    static void processThwackBar(Bot& attacker, Bot& target,
-                                std::vector<CombatEvent>& events, float dt);
-    static void processPistonPunch(Bot& attacker, std::vector<Bot>& bots,
-                                  std::vector<CombatEvent>& events, float dt);
-    static void processDualSpinners(Bot& attacker, Bot& target,
-                                   std::vector<CombatEvent>& events, float dt);
-
-    // Cooldown constants
-    static constexpr float SPINNER_TICK_TIME = 0.3f;
-    static constexpr float SPINNER_MIN_SPEED = 0.1f;
 };
 
 // Mine object for Mine special

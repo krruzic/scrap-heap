@@ -28,32 +28,52 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
 
     const auto& engine = ComponentRegistry::instance().getEngine(bot.engineIndex);
 
-    // Calculate effective stats with modifiers - MUCH SLOWER base speed
-    float effectiveMaxSpeed = bot.maxSpeed * 0.4f;  // Slower tank-like speed
-    float effectiveAccel = bot.acceleration * 0.5f;
+    // === ENGINE-BASED STATS ===
+    // Max speed: primarily based on power/weight ratio
+    // Acceleration: based on power but inversely affected by weight more strongly
+    float powerToWeight = engine.power / bot.totalWeight;
+
+    // Base max speed scaled by power-to-weight (higher power = faster)
+    float baseMaxSpeed = powerToWeight * 2.5f;
+
+    // Base acceleration - weight has stronger effect (heavier = sluggish)
+    // High power engines accelerate faster, but heavy bots are slow to start
+    float baseAccelRate = (engine.power * 0.5f) / (bot.totalWeight * 1.2f);
+
+    // Ramjet-style engines (high power, low torque) have better top speed but slower accel
+    // Dragster-style engines have both high speed and good accel
+    float accelModifier = 1.0f;
+    if (engine.power > 300.0f) {
+        // Very high power engines trade some accel for top speed
+        accelModifier = 0.7f;
+        baseMaxSpeed *= 1.2f;
+    }
+
+    float effectiveMaxSpeed = baseMaxSpeed;
+    float effectiveAccelRate = baseAccelRate * accelModifier;
 
     // Speed boost powerup
     if (bot.speedBoostTimer > 0) {
         effectiveMaxSpeed *= 1.3f;
-        effectiveAccel *= 1.3f;
+        effectiveAccelRate *= 1.2f;
     }
 
     // Berserk effect
     if (bot.berserkActive) {
         effectiveMaxSpeed *= 1.5f;
-        effectiveAccel *= 1.5f;
+        effectiveAccelRate *= 1.3f;
     }
 
-    // Boost special
+    // Boost special - big acceleration boost
     if (bot.boostActive) {
-        effectiveAccel *= 2.0f;
+        effectiveAccelRate *= 3.0f;
         effectiveMaxSpeed *= 1.5f;
     }
 
     // Reduced speed while grabbing
     if (bot.grabState == GrabState::Grabbing) {
         effectiveMaxSpeed *= 0.5f;
-        effectiveAccel *= 0.5f;
+        effectiveAccelRate *= 0.5f;
     }
 
     // === TANK CONTROLS ===
@@ -65,28 +85,57 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
     // Throttle and reverse from shoulder buttons/triggers
     float driveInput = bot.throttle - bot.reverse;
 
-    // Turn speed based on engine torque - slower for tank feel
-    float turnRate = (engine.torque / 150.0f) * 2.5f;
+    // Turn speed based on engine torque
+    // Higher torque = faster turning, weight reduces it
+    float baseTurnRate = (engine.torque / bot.totalWeight) * 5.0f;
 
-    // Apply turning (only when moving or with significant input)
-    float currentSpeed = std::sqrt(bot.velX * bot.velX + bot.velY * bot.velY);
-    if (std::abs(steerInput) > 0.1f) {
-        // Can turn in place at reduced rate, or while moving
-        float turnMultiplier = 0.4f + (currentSpeed / effectiveMaxSpeed) * 0.6f;
-        turnMultiplier = std::min(1.0f, turnMultiplier);
-        bot.angle += steerInput * turnRate * turnMultiplier * dt;
-        bot.angle = normalizeAngle(bot.angle);
+    // Angular velocity smoothing - don't turn instantly
+    float targetAngularVel = steerInput * baseTurnRate;
+    float angularAccel = 15.0f;  // How fast we reach target turn rate
+
+    // Smoothly interpolate angular velocity
+    float angularDiff = targetAngularVel - bot.angularVel;
+    float maxAngularChange = angularAccel * dt;
+    if (std::abs(angularDiff) < maxAngularChange) {
+        bot.angularVel = targetAngularVel;
+    } else {
+        bot.angularVel += (angularDiff > 0 ? maxAngularChange : -maxAngularChange);
+    }
+
+    // Apply angular velocity to angle
+    bot.angle += bot.angularVel * dt;
+    bot.angle = normalizeAngle(bot.angle);
+
+    // === GRADUAL ACCELERATION ===
+    Vec2 facing = bot.getFacingVector();
+
+    // Current speed in facing direction
+    float currentForwardSpeed = facing.x * bot.velX + facing.y * bot.velY;
+
+    // Target speed based on input
+    float targetSpeed = driveInput * effectiveMaxSpeed;
+
+    // Speed difference
+    float speedDiff = targetSpeed - currentForwardSpeed;
+
+    // Acceleration curve: faster from rest, slower near max
+    float speedRatio = std::abs(currentForwardSpeed) / std::max(0.1f, effectiveMaxSpeed);
+    float accelCurve = 1.0f - speedRatio * 0.4f;  // 100% at rest, 60% at max
+    accelCurve = std::max(0.3f, accelCurve);  // Never below 30%
+
+    // Calculate acceleration this frame
+    float accelThisFrame = effectiveAccelRate * accelCurve * dt * 80.0f;
+
+    // Clamp to not overshoot target
+    if (std::abs(accelThisFrame) > std::abs(speedDiff)) {
+        accelThisFrame = speedDiff;
+    } else if (speedDiff < 0) {
+        accelThisFrame = -accelThisFrame;
     }
 
     // Apply acceleration in facing direction
-    if (std::abs(driveInput) > 0.1f) {
-        Vec2 facing = bot.getFacingVector();
-
-        // Forward or backward
-        float accel = effectiveAccel * driveInput;
-        bot.velX += facing.x * accel * dt;
-        bot.velY += facing.y * accel * dt;
-    }
+    bot.velX += facing.x * accelThisFrame;
+    bot.velY += facing.y * accelThisFrame;
 
     // Clamp to max speed
     float speed = std::sqrt(bot.velX * bot.velX + bot.velY * bot.velY);
@@ -96,9 +145,9 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
         bot.velY *= scale;
     }
 
-    // Apply position (slower multiplier for tank feel)
-    bot.x += bot.velX * dt * 40.0f;
-    bot.y += bot.velY * dt * 40.0f;
+    // Apply position
+    bot.x += bot.velX * dt * 50.0f;
+    bot.y += bot.velY * dt * 50.0f;
 }
 
 void Physics::applyFriction(Bot& bot, float dt) {

@@ -1,4 +1,5 @@
 #include "combat.h"
+#include "weapon_system.h"
 #include "components.h"
 #include "physics.h"
 #include <cmath>
@@ -218,141 +219,49 @@ void Combat::processWeapons(std::vector<Bot>& bots, const StageDef& stage,
 
             // Process each weapon type
             if (weapon.name == "Spinner") {
-                processSpinner(bots[i], bots[j], events, dt);
+                Weapons::processSpinner(bots[i], bots[j], events, dt);
             } else if (weapon.name == "Clamp") {
-                processClamp(bots[i], bots[j], events, dt);
+                Weapons::processClamp(bots[i], bots[j], events, dt);
             } else if (weapon.name == "Battering Ram") {
-                processBatteringRam(bots[i], bots[j], events);
+                Weapons::processBatteringRam(bots[i], bots[j], events);
             } else if (weapon.name == "Flail") {
-                processFlail(bots[i], bots[j], events, dt);
+                Weapons::processFlail(bots[i], bots[j], events, dt);
             } else if (weapon.name == "Saw Blade") {
-                processSawBlade(bots[i], bots[j], events, dt);
+                Weapons::processSawBlade(bots[i], bots[j], events, dt);
             } else if (weapon.name == "Thwack Bar") {
-                processThwackBar(bots[i], bots[j], events, dt);
+                Weapons::processThwackBar(bots[i], bots[j], events, dt);
             } else if (weapon.name == "Dual Spinners") {
-                processDualSpinners(bots[i], bots[j], events, dt);
+                Weapons::processDualSpinners(bots[i], bots[j], events, dt);
             }
 
             // Check other bot's weapon too
             const auto& weapon2 = ComponentRegistry::instance().getWeapon(bots[j].weaponIndex);
             if (weapon2.name == "Spinner") {
-                processSpinner(bots[j], bots[i], events, dt);
+                Weapons::processSpinner(bots[j], bots[i], events, dt);
             } else if (weapon2.name == "Clamp") {
-                processClamp(bots[j], bots[i], events, dt);
+                Weapons::processClamp(bots[j], bots[i], events, dt);
             } else if (weapon2.name == "Battering Ram") {
-                processBatteringRam(bots[j], bots[i], events);
+                Weapons::processBatteringRam(bots[j], bots[i], events);
             } else if (weapon2.name == "Flail") {
-                processFlail(bots[j], bots[i], events, dt);
+                Weapons::processFlail(bots[j], bots[i], events, dt);
             } else if (weapon2.name == "Saw Blade") {
-                processSawBlade(bots[j], bots[i], events, dt);
+                Weapons::processSawBlade(bots[j], bots[i], events, dt);
             } else if (weapon2.name == "Thwack Bar") {
-                processThwackBar(bots[j], bots[i], events, dt);
+                Weapons::processThwackBar(bots[j], bots[i], events, dt);
             } else if (weapon2.name == "Dual Spinners") {
-                processDualSpinners(bots[j], bots[i], events, dt);
+                Weapons::processDualSpinners(bots[j], bots[i], events, dt);
             }
         }
 
         // Active weapons that work at range
         if (weapon.name == "Hammer") {
-            processHammer(bots[i], bots, events, dt);
+            Weapons::processHammer(bots[i], bots, events, dt);
         } else if (weapon.name == "Whip") {
-            processWhip(bots[i], bots, events, dt);
+            Weapons::processWhip(bots[i], bots, events, dt);
         } else if (weapon.name == "Piston Punch") {
-            processPistonPunch(bots[i], bots, events, dt);
+            Weapons::processPistonPunch(bots[i], bots, events, dt);
         }
     }
-}
-
-void Combat::processSpinner(Bot& attacker, Bot& target,
-                           std::vector<CombatEvent>& events, float dt) {
-    if (attacker.empDisabled) return;
-    if (attacker.weaponCooldown > 0) return;
-
-    const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-    const auto& targetWeapon = ComponentRegistry::instance().getWeapon(target.weaponIndex);
-
-    Vec2 attackerFacing = attacker.getFacingVector();
-    Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
-    toTarget = toTarget.normalized();
-
-    float attackerDot = attackerFacing.dot(toTarget);
-    if (attackerDot < 0.3f) return;
-
-    float damage;
-    float knockback;
-
-    if (attacker.inputWeapon && attacker.spinnerSpeed > 0.1f) {
-        damage = weapon.damage * attacker.spinnerSpeed;
-        knockback = weapon.knockback * attacker.spinnerSpeed;
-        attacker.spinnerSpeed = 0.0f;
-    } else {
-        damage = weapon.damage * 0.5f;
-        knockback = weapon.knockback * 0.5f;
-    }
-
-    if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-    if (attacker.overdriveActive) damage *= 1.5f;
-
-    Vec2 knockDir = toTarget;
-
-    bool targetHasSpinner = (targetWeapon.name == "Spinner" || targetWeapon.name == "Dual Spinners");
-
-    if (targetHasSpinner) {
-        Vec2 targetFacing = target.getFacingVector();
-        float targetDot = targetFacing.dot(Vec2(-toTarget.x, -toTarget.y));
-
-        if (targetDot > 0.3f) {
-            float targetDamage = targetWeapon.damage * 0.5f;
-            if (target.damageBoostTimer > 0) targetDamage *= 1.5f;
-            if (target.overdriveActive) targetDamage *= 1.5f;
-
-            Vec2 reverseKnockDir(-knockDir.x, -knockDir.y);
-            float targetKnockback = targetWeapon.knockback * 0.5f;
-
-            applyDamage(target, damage * 0.5f, knockback * 0.5f, knockDir, &attacker, events);
-            applyDamage(attacker, targetDamage * 0.5f, targetKnockback * 0.5f, reverseKnockDir, &target, events);
-
-            attacker.spinnerSpeed *= 0.6f;
-            target.spinnerSpeed *= 0.6f;
-        } else {
-            applyDamage(target, damage, knockback, knockDir, &attacker, events);
-        }
-    } else {
-        applyDamage(target, damage, knockback, knockDir, &attacker, events);
-    }
-
-    attacker.weaponCooldown = SPINNER_TICK_TIME;
-}
-
-void Combat::processClamp(Bot& attacker, Bot& target,
-                         std::vector<CombatEvent>& events, float dt) {
-    if (attacker.empDisabled) return;
-    if (!attacker.inputWeaponPressed) return;
-    if (attacker.grabState != GrabState::None) return;
-    if (target.grabState != GrabState::None) return;
-
-    Vec2 facing = attacker.getFacingVector();
-    Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
-    toTarget = toTarget.normalized();
-    if (facing.dot(toTarget) < 0.5f) return;
-
-    const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-
-    // Initiate grab
-    attacker.grabState = GrabState::Grabbing;
-    attacker.grabbingBot = target.playerIndex;
-    attacker.grabTimer = weapon.grabDuration;
-
-    target.grabState = GrabState::Grabbed;
-    target.grabbedBy = attacker.playerIndex;
-    target.grabEscapeProgress = 0.0f;
-
-    CombatEvent event;
-    event.type = CombatEvent::Type::Grab;
-    event.x = target.x;
-    event.y = target.y;
-    event.timer = 0.5f;
-    events.push_back(event);
 }
 
 void Combat::processGrabs(std::vector<Bot>& bots, std::vector<CombatEvent>& events, float dt) {
@@ -416,268 +325,6 @@ void Combat::processGrabs(std::vector<Bot>& bots, std::vector<CombatEvent>& even
             event.timer = 0.5f;
             events.push_back(event);
         }
-    }
-}
-
-void Combat::processHammer(Bot& attacker, std::vector<Bot>& bots,
-                          std::vector<CombatEvent>& events, float dt) {
-    if (attacker.empDisabled) return;
-
-    const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-
-    // Start windup on button press
-    if (attacker.inputWeaponPressed && !attacker.hammerWindingUp && attacker.weaponCooldown <= 0) {
-        attacker.hammerWindingUp = true;
-        attacker.hammerWindupTimer = 0.8f;
-    }
-
-    // Update windup
-    if (attacker.hammerWindingUp) {
-        attacker.hammerWindupTimer -= dt;
-
-        if (attacker.hammerWindupTimer <= 0) {
-            // Strike!
-            attacker.hammerWindingUp = false;
-            attacker.weaponCooldown = weapon.cooldown;
-
-            Vec2 facing = attacker.getFacingVector();
-            float strikeRange = attacker.radius * 1.5f;
-            float strikeX = attacker.x + facing.x * strikeRange;
-            float strikeY = attacker.y + facing.y * strikeRange;
-
-            for (auto& target : bots) {
-                if (&target == &attacker) continue;
-                if (!target.isAlive) continue;
-
-                float dist = distance(strikeX, strikeY, target.x, target.y);
-                if (dist < target.radius + 20.0f) {
-                    float damage = weapon.damage;
-                    if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-                    if (attacker.overdriveActive) damage *= 1.5f;
-
-                    // Armor piercing is applied by temporarily modifying target armor
-                    float originalArmor = target.armor;
-                    target.armor = 1.0f + (target.armor - 1.0f) * (1.0f - weapon.armorPierce);
-
-                    Vec2 knockDir(target.x - attacker.x, target.y - attacker.y);
-                    applyDamage(target, damage, weapon.knockback, knockDir, &attacker, events);
-
-                    target.armor = originalArmor;
-                }
-            }
-        }
-    }
-}
-
-void Combat::processBatteringRam(Bot& attacker, Bot& target,
-                                std::vector<CombatEvent>& events) {
-    float speed = std::sqrt(attacker.velX * attacker.velX + attacker.velY * attacker.velY);
-    if (speed < 50.0f) return;
-
-    Vec2 facing = attacker.getFacingVector();
-    Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
-    toTarget = toTarget.normalized();
-    if (facing.dot(toTarget) < 0.5f) return;
-
-    const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-
-    float damage = speed * 0.3f;
-    if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-    if (attacker.overdriveActive) damage *= 1.5f;
-
-    applyDamage(target, damage, weapon.knockback * 1.5f, toTarget, &attacker, events);
-}
-
-void Combat::processFlail(Bot& attacker, Bot& target,
-                         std::vector<CombatEvent>& events, float dt) {
-    if (attacker.empDisabled) return;
-    if (attacker.weaponCooldown > 0) return;
-
-    float angularSpeed = std::abs(attacker.angularVel);
-    float linearSpeed = std::sqrt(attacker.velX * attacker.velX + attacker.velY * attacker.velY);
-    float combinedSpeed = angularSpeed * 3.0f + linearSpeed * 0.01f;
-    if (combinedSpeed < 0.3f) return;
-
-    const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-
-    float speedMult = std::min(2.0f, combinedSpeed);
-    float damage = weapon.damage * speedMult;
-    float knockback = weapon.knockback * speedMult;
-
-    if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-    if (attacker.overdriveActive) damage *= 1.5f;
-
-    Vec2 knockDir(target.x - attacker.x, target.y - attacker.y);
-    applyDamage(target, damage, knockback, knockDir, &attacker, events);
-
-    attacker.weaponCooldown = 0.25f;
-}
-
-void Combat::processWhip(Bot& attacker, std::vector<Bot>& bots,
-                        std::vector<CombatEvent>& events, float dt) {
-    if (attacker.empDisabled) return;
-
-    const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-
-    // Extend whip on button press
-    if (attacker.inputWeaponPressed && !attacker.whipExtended && attacker.weaponCooldown <= 0) {
-        attacker.whipExtended = true;
-        attacker.whipExtendTimer = 0.3f;
-        attacker.whipAngle = attacker.angle;
-    }
-
-    if (attacker.whipExtended) {
-        attacker.whipExtendTimer -= dt;
-
-        // Check for hits during extension
-        Vec2 whipDir = Vec2::fromAngle(attacker.whipAngle);
-        float whipLength = attacker.radius * 3.0f;
-
-        for (auto& target : bots) {
-            if (&target == &attacker) continue;
-            if (!target.isAlive) continue;
-
-            // Line-circle intersection for whip
-            Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
-            float proj = toTarget.dot(whipDir);
-
-            if (proj > 0 && proj < whipLength) {
-                Vec2 closest = Vec2(attacker.x, attacker.y) + whipDir * proj;
-                float dist = distance(closest.x, closest.y, target.x, target.y);
-
-                if (dist < target.radius + 5.0f) {
-                    float damage = weapon.damage;
-                    if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-                    if (attacker.overdriveActive) damage *= 1.5f;
-
-                    Vec2 knockDir = whipDir;
-                    applyDamage(target, damage, weapon.knockback, knockDir, &attacker, events);
-                }
-            }
-        }
-
-        if (attacker.whipExtendTimer <= 0) {
-            attacker.whipExtended = false;
-            attacker.weaponCooldown = weapon.cooldown;
-        }
-    }
-}
-
-void Combat::processSawBlade(Bot& attacker, Bot& target,
-                            std::vector<CombatEvent>& events, float dt) {
-    if (attacker.empDisabled) return;
-    if (attacker.weaponCooldown > 0) return;
-
-    // Check if target is to the side
-    Vec2 facing = attacker.getFacingVector();
-    Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
-    toTarget = toTarget.normalized();
-
-    float dot = facing.dot(toTarget);
-    // Side-mounted, so check for targets not directly in front or behind
-    if (std::abs(dot) < 0.7f) {
-        const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-
-        float damage = weapon.damage;
-        if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-        if (attacker.overdriveActive) damage *= 1.5f;
-
-        Vec2 knockDir = toTarget;
-        applyDamage(target, damage, weapon.knockback, knockDir, &attacker, events);
-
-        attacker.weaponCooldown = weapon.cooldown;
-    }
-}
-
-void Combat::processThwackBar(Bot& attacker, Bot& target,
-                             std::vector<CombatEvent>& events, float dt) {
-    if (attacker.empDisabled) return;
-    if (attacker.weaponCooldown > 0) return;
-
-    Vec2 facing = attacker.getFacingVector();
-    Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
-    toTarget = toTarget.normalized();
-
-    float dot = facing.dot(toTarget);
-    if (dot < 0.0f) {
-        float angularSpeed = std::abs(attacker.angularVel);
-        float speedMult = 0.5f + std::min(1.5f, angularSpeed * 2.0f);
-
-        const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-
-        float damage = weapon.damage * speedMult;
-        float knockback = weapon.knockback * speedMult;
-        if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-        if (attacker.overdriveActive) damage *= 1.5f;
-
-        applyDamage(target, damage, knockback, toTarget, &attacker, events);
-        attacker.weaponCooldown = weapon.cooldown;
-    }
-}
-
-void Combat::processPistonPunch(Bot& attacker, std::vector<Bot>& bots,
-                               std::vector<CombatEvent>& events, float dt) {
-    if (attacker.empDisabled) return;
-    if (!attacker.inputWeaponPressed) return;
-    if (attacker.weaponCooldown > 0) return;
-
-    const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-
-    Vec2 facing = attacker.getFacingVector();
-    float punchRange = attacker.radius * 1.8f;
-
-    for (auto& target : bots) {
-        if (&target == &attacker) continue;
-        if (!target.isAlive) continue;
-
-        float dist = distance(attacker.x, attacker.y, target.x, target.y);
-        if (dist < punchRange + target.radius) {
-            Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
-            if (facing.dot(toTarget.normalized()) > 0.4f) {
-                float damage = weapon.damage;
-                if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-                if (attacker.overdriveActive) damage *= 1.5f;
-
-                applyDamage(target, damage, weapon.knockback, facing, &attacker, events);
-            }
-        }
-    }
-
-    attacker.weaponCooldown = weapon.cooldown;
-}
-
-void Combat::processDualSpinners(Bot& attacker, Bot& target,
-                                std::vector<CombatEvent>& events, float dt) {
-    if (attacker.empDisabled) return;
-    if (attacker.weaponCooldown > 0) return;
-
-    Vec2 facing = attacker.getFacingVector();
-    Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
-    toTarget = toTarget.normalized();
-
-    float dot = facing.dot(toTarget);
-    if (std::abs(dot) < 0.8f) {
-        const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
-
-        float damage;
-        float knockback;
-
-        if (attacker.inputWeapon && attacker.spinnerSpeed > 0.1f) {
-            damage = weapon.damage * attacker.spinnerSpeed;
-            knockback = weapon.knockback * attacker.spinnerSpeed;
-            attacker.spinnerSpeed = 0.0f;
-        } else {
-            damage = weapon.damage * 0.5f;
-            knockback = weapon.knockback * 0.5f;
-        }
-
-        if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-        if (attacker.overdriveActive) damage *= 1.5f;
-
-        Vec2 knockDir = toTarget;
-        applyDamage(target, damage, knockback, knockDir, &attacker, events);
-
-        attacker.weaponCooldown = weapon.cooldown;
     }
 }
 

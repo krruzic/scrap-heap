@@ -42,49 +42,9 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(SDL3 SDL3_ttf)
 
-# Source files
-set(SOURCES
-    src/main.cpp
-    src/game_context.cpp
-    src/input.cpp
-    src/renderer.cpp
-    src/components.cpp
-    src/bot.cpp
-    src/physics.cpp
-    src/combat.cpp
-    src/stage.cpp
-    src/powerup.cpp
-    src/menu.cpp
-    src/game_setup.cpp
-    src/battle.cpp
-    src/data.cpp
-    src/utils.cpp
-    src/storm.cpp
-    src/battle_hud.cpp
-    src/arena_mode.cpp
-)
-
-# Header files
-set(HEADERS
-    include/game_context.h
-    include/input.h
-    include/renderer.h
-    include/components.h
-    include/bot.h
-    include/physics.h
-    include/combat.h
-    include/stage.h
-    include/powerup.h
-    include/menu.h
-    include/game_setup.h
-    include/battle.h
-    include/data.h
-    include/utils.h
-    include/game_mode.h
-    include/storm.h
-    include/battle_hud.h
-    include/arena_mode.h
-)
+# Glob source and header files
+file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+file(GLOB HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
