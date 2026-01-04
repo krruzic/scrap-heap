@@ -185,9 +185,6 @@ private:
     // Apply wall damage to bots outside safe zone
     static void applyWallDamage(BattleState& state, float dt);
 
-    // Render HUD
-    static void renderHUD(const BattleState& state);
-
     // Render shrinking wall
     static void renderShrinkingWall(const BattleState& state);
 

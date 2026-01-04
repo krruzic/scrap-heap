@@ -57,8 +57,8 @@ void BattleHUD::renderCornerHUD(const Bot& bot, int position, int kills, float m
     // Corner positions for each player
     // P1: top-left, P2: top-right, P3: bottom-left, P4: bottom-right
     float cornerPad = 8;
-    float boxWidth = 120;
-    float boxHeight = 70;
+    float boxWidth = 130;
+    float boxHeight = 80;
 
     bool isRight = (position == 1 || position == 3);
     bool isBottom = (position == 2 || position == 3);
@@ -67,17 +67,10 @@ void BattleHUD::renderCornerHUD(const Bot& bot, int position, int kills, float m
     float by = isBottom ? (WINDOW_HEIGHT - boxHeight - cornerPad) : cornerPad;
 
     SDL_Color playerColor = Renderer::getPlayerColor(bot.colorIndex);
-    SDL_Color darkPlayerColor = {
-        static_cast<Uint8>(playerColor.r * 0.3f),
-        static_cast<Uint8>(playerColor.g * 0.3f),
-        static_cast<Uint8>(playerColor.b * 0.3f),
-        255
-    };
 
     bool dimmed = !bot.isAlive || bot.isRespawning;
     if (dimmed) {
         playerColor = {80, 80, 80, 255};
-        darkPlayerColor = {40, 40, 40, 255};
     }
 
     // Background box
@@ -138,67 +131,74 @@ void BattleHUD::renderCornerHUD(const Bot& bot, int position, int kills, float m
     renderer.drawText(hpStr, bx + boxWidth / 2, barY + 2,
                      renderer.getFontSmall(), {255, 255, 255, 200}, TextAlign::Center);
 
-    // Ability indicators - row of circles below health bar
-    float abilityY = barY + barH + 10;
-    float iconRadius = 8.0f;
-    float iconSpacing = 22.0f;
-    float iconsStartX = bx + 14;
+    // === TWO BIG CIRCLES: Special (left) and Powerup (right) ===
+    float circleY = barY + barH + 18;
+    float iconRadius = 16.0f;  // Much bigger circles
+    float circleSpacing = 50.0f;
+    float circlesStartX = bx + boxWidth / 2 - circleSpacing / 2;
 
-    SDL_Color emptyCircle = {40, 40, 50, 180};
-    SDL_Color abilityReady = {100, 255, 100, 255};
-    SDL_Color abilityOnCooldown = {60, 60, 70, 200};
+    SDL_Color emptyCircle = {40, 40, 50, 200};
+    SDL_Color borderColor = {100, 100, 120, 255};
 
-    // Special ability (leftmost)
-    float specialX = iconsStartX;
-    renderer.drawCircle(specialX, abilityY, iconRadius, emptyCircle, true);
+    // === CIRCLE 1: Special Ability (left) ===
+    float specialX = circlesStartX;
+    renderer.drawCircle(specialX, circleY, iconRadius, emptyCircle, true);
 
     if (bot.isAlive && !bot.isRespawning) {
         if (bot.specialActiveTimer > 0) {
+            // Active - pulsing orange
             float pulse = 0.5f + 0.5f * std::sin(matchTimer * 10.0f);
-            SDL_Color activeColor = {255, static_cast<Uint8>(180 + 75 * pulse), 50, 255};
-            renderer.drawCircle(specialX, abilityY, iconRadius - 1, activeColor, true);
+            SDL_Color activeColor = {255, static_cast<Uint8>(150 + 100 * pulse), 50, 255};
+            renderer.drawCircle(specialX, circleY, iconRadius - 2, activeColor, true);
         } else if (bot.specialCooldown <= 0) {
-            renderer.drawCircle(specialX, abilityY, iconRadius - 1, abilityReady, true);
+            // Ready - bright green
+            SDL_Color readyColor = {80, 255, 80, 255};
+            renderer.drawCircle(specialX, circleY, iconRadius - 2, readyColor, true);
         } else {
-            renderer.drawCircle(specialX, abilityY, iconRadius - 1, abilityOnCooldown, true);
+            // On cooldown - dark gray
+            SDL_Color cooldownColor = {60, 60, 70, 255};
+            renderer.drawCircle(specialX, circleY, iconRadius - 2, cooldownColor, true);
         }
     }
-    renderer.drawCircleOutline(specialX, abilityY, iconRadius, {80, 80, 100, 255}, 1.5f);
+    renderer.drawCircleOutline(specialX, circleY, iconRadius, borderColor, 2.5f);
+    renderer.drawText("S", specialX, circleY - 5,
+                     renderer.getFontSmall(), {200, 200, 200, 180}, TextAlign::Center);
 
-    // Speed boost
-    float speedX = iconsStartX + iconSpacing;
-    renderer.drawCircle(speedX, abilityY, iconRadius, emptyCircle, true);
-    if (bot.speedBoostTimer > 0) {
-        renderer.drawCircle(speedX, abilityY, iconRadius - 1, {255, 255, 80, 255}, true);
-    }
-    renderer.drawCircleOutline(speedX, abilityY, iconRadius, {80, 80, 100, 255}, 1.5f);
+    // === CIRCLE 2: Current Powerup (right) ===
+    float powerupX = circlesStartX + circleSpacing;
+    renderer.drawCircle(powerupX, circleY, iconRadius, emptyCircle, true);
 
-    // Damage boost
-    float dmgX = iconsStartX + iconSpacing * 2;
-    renderer.drawCircle(dmgX, abilityY, iconRadius, emptyCircle, true);
-    if (bot.damageBoostTimer > 0) {
-        renderer.drawCircle(dmgX, abilityY, iconRadius - 1, {255, 80, 80, 255}, true);
-    }
-    renderer.drawCircleOutline(dmgX, abilityY, iconRadius, {80, 80, 100, 255}, 1.5f);
+    // Determine current powerup state and show appropriate color
+    SDL_Color powerupColor = {0, 0, 0, 0};
+    bool hasPowerup = false;
 
-    // Active ability (shield/boost/berserk)
-    float activeX = iconsStartX + iconSpacing * 3;
-    renderer.drawCircle(activeX, abilityY, iconRadius, emptyCircle, true);
     if (bot.shieldActive) {
-        renderer.drawCircle(activeX, abilityY, iconRadius - 1, {100, 180, 255, 255}, true);
+        powerupColor = {100, 180, 255, 255};  // Blue for shield
+        hasPowerup = true;
+    } else if (bot.speedBoostTimer > 0) {
+        powerupColor = {255, 255, 80, 255};   // Yellow for speed
+        hasPowerup = true;
+    } else if (bot.damageBoostTimer > 0) {
+        powerupColor = {255, 80, 80, 255};    // Red for damage
+        hasPowerup = true;
     } else if (bot.boostActive) {
-        renderer.drawCircle(activeX, abilityY, iconRadius - 1, {80, 200, 255, 255}, true);
+        powerupColor = {80, 200, 255, 255};   // Cyan for boost
+        hasPowerup = true;
     } else if (bot.berserkActive) {
-        renderer.drawCircle(activeX, abilityY, iconRadius - 1, {255, 50, 50, 255}, true);
+        powerupColor = {255, 50, 50, 255};    // Bright red for berserk
+        hasPowerup = true;
+    } else if (bot.heldPowerup >= 0) {
+        powerupColor = {200, 200, 50, 255};   // Gold for held powerup
+        hasPowerup = true;
     }
-    renderer.drawCircleOutline(activeX, abilityY, iconRadius, {80, 80, 100, 255}, 1.5f);
 
-    // Held powerup indicator (if any)
-    if (bot.heldPowerup >= 0) {
-        float pwrX = iconsStartX + iconSpacing * 4;
-        renderer.drawCircle(pwrX, abilityY, iconRadius, {200, 200, 50, 255}, true);
-        renderer.drawCircleOutline(pwrX, abilityY, iconRadius, {255, 255, 100, 255}, 1.5f);
+    if (hasPowerup && bot.isAlive) {
+        renderer.drawCircle(powerupX, circleY, iconRadius - 2, powerupColor, true);
     }
+
+    renderer.drawCircleOutline(powerupX, circleY, iconRadius, borderColor, 2.5f);
+    renderer.drawText("P", powerupX, circleY - 5,
+                     renderer.getFontSmall(), {200, 200, 200, 180}, TextAlign::Center);
 }
 
 void BattleHUD::renderPlayerHUD(const Bot& bot, int position, float matchTimer) {
@@ -215,8 +215,8 @@ void BattleHUD::renderKillPopups(const std::vector<KillPopup>& popups,
     auto& renderer = Renderer::instance();
 
     float cornerPad = 8;
-    float boxWidth = 120;
-    float boxHeight = 70;
+    float boxWidth = 130;
+    float boxHeight = 80;
 
     for (const auto& popup : popups) {
         for (size_t i = 0; i < bots.size() && i < 4; ++i) {
