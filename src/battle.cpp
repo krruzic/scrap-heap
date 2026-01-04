@@ -1,4 +1,5 @@
 #include "battle.h"
+#include "battle_hud.h"
 #include "game_context.h"
 #include "game_setup.h"
 #include "renderer.h"
@@ -726,8 +727,9 @@ void BattleManager::render(const BattleState& state) {
     // Draw shrinking wall ON TOP of everything
     renderShrinkingWall(state);
 
-    // Draw HUD
-    renderHUD(state);
+    // Draw HUD (using new corner-based layout)
+    BattleHUD::render(state.bots, state.botStats, state.matchTimer, state.maxMatchTime);
+    BattleHUD::renderKillPopups(state.killPopups, state.bots);
 
     // Draw game over overlay if needed
     if (state.isGameOver()) {
