@@ -59,6 +59,9 @@ set(SOURCES
     src/battle.cpp
     src/data.cpp
     src/utils.cpp
+    src/storm.cpp
+    src/battle_hud.cpp
+    src/arena_mode.cpp
 )
 
 # Header files
@@ -77,6 +80,10 @@ set(HEADERS
     include/battle.h
     include/data.h
     include/utils.h
+    include/game_mode.h
+    include/storm.h
+    include/battle_hud.h
+    include/arena_mode.h
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})

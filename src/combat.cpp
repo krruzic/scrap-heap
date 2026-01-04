@@ -119,6 +119,58 @@ void Combat::applyDamage(Bot& target, float damage, float knockbackForce,
     }
 }
 
+void Combat::applyDamage(Bot& target, float damage, int sourceIndex,
+                         std::vector<Bot>& bots, std::vector<CombatEvent>& events,
+                         std::map<int, BotBattleStats>& stats,
+                         std::vector<KillPopup>& killPopups) {
+    float actualDamage = damage;
+
+    // Apply damage
+    target.health -= actualDamage;
+
+    // Track stats
+    stats[target.playerIndex].damageTaken += actualDamage;
+    if (sourceIndex >= 0) {
+        stats[sourceIndex].damageDealt += actualDamage;
+    }
+
+    // Create damage event
+    CombatEvent event;
+    event.type = CombatEvent::Type::Damage;
+    event.x = target.x;
+    event.y = target.y;
+    event.value = actualDamage;
+    event.targetBot = target.playerIndex;
+    event.sourceBot = sourceIndex;
+    event.timer = 0.5f;
+    events.push_back(event);
+
+    // Check for death
+    if (target.health <= 0) {
+        target.health = 0;
+        target.isAlive = false;
+        stats[target.playerIndex].deaths++;
+
+        // Credit kill
+        if (sourceIndex >= 0) {
+            stats[sourceIndex].kills++;
+            KillPopup popup;
+            popup.playerIndex = sourceIndex;
+            popup.timer = KillPopup::DURATION;
+            killPopups.push_back(popup);
+        }
+
+        CombatEvent deathEvent;
+        deathEvent.type = CombatEvent::Type::Death;
+        deathEvent.x = target.x;
+        deathEvent.y = target.y;
+        deathEvent.targetBot = target.playerIndex;
+        deathEvent.sourceBot = sourceIndex;
+        deathEvent.timer = 1.0f;
+        events.push_back(deathEvent);
+    }
+}
+
 void Combat::processWeapons(std::vector<Bot>& bots, const StageDef& stage,
                            std::vector<CombatEvent>& events, float dt) {
     // Update weapon cooldowns and spinner speeds

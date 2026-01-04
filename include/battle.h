@@ -81,24 +81,7 @@ struct ShrinkingWall {
     }
 };
 
-// Per-bot tracking for stats
-struct BotBattleStats {
-    int kills = 0;
-    int deaths = 0;
-    float damageDealt = 0.0f;
-    float damageTaken = 0.0f;
-};
-
-// Kill popup animation (+1 that fades)
-struct KillPopup {
-    int playerIndex;      // Which player got the kill
-    float timer;          // Time remaining (starts at 1.0)
-    static constexpr float DURATION = 1.0f;
-
-    float getAlpha() const {
-        return std::min(1.0f, timer / 0.3f);  // Fade out in last 0.3s
-    }
-};
+// BotBattleStats and KillPopup are defined in battle_hud.h (included via combat.h)
 
 // Battle state
 struct BattleState {

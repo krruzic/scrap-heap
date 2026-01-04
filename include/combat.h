@@ -2,7 +2,9 @@
 
 #include "bot.h"
 #include "stage.h"
+#include "battle_hud.h"
 #include <vector>
+#include <map>
 
 namespace ScrapHeap {
 
@@ -40,10 +42,16 @@ public:
     // Process special abilities
     static void processSpecials(std::vector<Bot>& bots, std::vector<CombatEvent>& events, float dt);
 
-    // Apply damage to a bot
+    // Apply damage to a bot (basic version)
     static void applyDamage(Bot& target, float damage, float knockbackForce,
                            const Vec2& knockbackDir, Bot* source,
                            std::vector<CombatEvent>& events);
+
+    // Apply damage with stats tracking (for use by arena_mode)
+    static void applyDamage(Bot& target, float damage, int sourceIndex,
+                           std::vector<Bot>& bots, std::vector<CombatEvent>& events,
+                           std::map<int, BotBattleStats>& stats,
+                           std::vector<KillPopup>& killPopups);
 
     // Process grab mechanics
     static void processGrabs(std::vector<Bot>& bots, std::vector<CombatEvent>& events, float dt);
