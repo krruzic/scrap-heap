@@ -29,6 +29,8 @@ Renderer& Renderer::instance() {
 bool Renderer::initialize(SDL_Renderer* renderer, const std::string& fontPath) {
     sdlRenderer = renderer;
 
+    SDL_SetRenderDrawBlendMode(sdlRenderer, SDL_BLENDMODE_BLEND);
+
     // Initialize TTF
     if (!TTF_Init()) {
         SDL_Log("Failed to initialize SDL_ttf: %s", SDL_GetError());
