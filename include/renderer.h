@@ -105,6 +105,9 @@ public:
     // Draw a bot
     void drawBot(const Bot& bot, SDL_Color color, float offsetX = 0, float offsetY = 0);
 
+    // Draw bot's engine visuals
+    void drawBotEngine(const Bot& bot, SDL_Color color, float offsetX = 0, float offsetY = 0);
+
     // Draw bot's weapon visuals
     void drawBotWeapon(const Bot& bot, SDL_Color color, float offsetX = 0, float offsetY = 0);
 

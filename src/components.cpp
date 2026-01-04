@@ -9,61 +9,63 @@ ComponentRegistry& ComponentRegistry::instance() {
 
 void ComponentRegistry::initialize() {
     // Initialize Frames - name, weight, armor, radius, shape, description
+    // Weight affects speed/accel, Armor is damage multiplier (higher = tougher)
     frames = {
-        {"Standard", 50.0f, 1.0f, 30.0f, FrameShape::Square, "Balanced baseline"},
-        {"Brick", 80.0f, 1.3f, 35.0f, FrameShape::Rectangle, "Tank - slow but tough"},
-        {"Dart", 30.0f, 0.7f, 22.0f, FrameShape::Triangle, "Glass cannon - fast but fragile"},
-        {"Disc", 50.0f, 1.0f, 28.0f, FrameShape::Circle, "Circular - no weak angles"},
-        {"Slab", 60.0f, 0.9f, 32.0f, FrameShape::Hexagon, "Hex - resists lateral knockback"},
-        {"Roach", 20.0f, 0.5f, 18.0f, FrameShape::Diamond, "Tiny - hard to hit, easy to kill"}
+        {"Standard", 55.0f, 1.0f, 28.0f, FrameShape::Square, "Balanced baseline"},
+        {"Brick", 95.0f, 1.6f, 38.0f, FrameShape::Rectangle, "Heavy tank - very slow but tough"},
+        {"Dart", 25.0f, 0.6f, 20.0f, FrameShape::Triangle, "Glass cannon - fast but fragile"},
+        {"Disc", 50.0f, 1.1f, 26.0f, FrameShape::Circle, "Circular - no weak angles"},
+        {"Slab", 70.0f, 1.3f, 32.0f, FrameShape::Hexagon, "Armored hex - good defense"},
+        {"Roach", 18.0f, 0.4f, 15.0f, FrameShape::Diamond, "Tiny - hard to hit, very fragile"}
     };
 
-    // Initialize Engines
+    // Initialize Engines - torque, power, weight, omniDrive, gyroStabilized
+    // Torque = turn speed, Power = top speed/accel
     engines = {
-        {"Standard", 150.0f, 200.0f, 10.0f, false, false, "Balanced baseline"},
-        {"Torque Monster", 250.0f, 120.0f, 15.0f, false, false, "Spins fast, moves slow"},
-        {"Dragster", 80.0f, 300.0f, 12.0f, false, false, "Fast straights, bad turns"},
-        {"Omni-Drive", 150.0f, 150.0f, 20.0f, true, false, "Can strafe"},
-        {"Gyro-Stabilized", 130.0f, 180.0f, 15.0f, false, true, "Resists knockback rotation"},
-        {"Ramjet", 100.0f, 350.0f, 18.0f, false, false, "Slow accel, very high top speed"}
+        {"Standard", 140.0f, 180.0f, 12.0f, false, false, "Balanced baseline"},
+        {"Torque Monster", 280.0f, 90.0f, 18.0f, false, false, "Extreme spin, crawls forward"},
+        {"Dragster", 60.0f, 320.0f, 14.0f, false, false, "Blazing fast, terrible turning"},
+        {"Omni-Drive", 120.0f, 130.0f, 22.0f, true, false, "Can strafe, lower stats"},
+        {"Gyro-Stabilized", 110.0f, 160.0f, 16.0f, false, true, "Resists knockback spin"},
+        {"Ramjet", 70.0f, 400.0f, 20.0f, false, false, "Insane top speed, very slow turning"}
     };
 
     // Initialize Weapons
+    // damage, knockback, weight, cooldown, spinUpTime, grabDuration, ignoresArmor, armorPierce
     weapons = {
-        // name, type, damage, knockback, weight, cooldown, spinUpTime, grabDuration, ignoresArmor, armorPierce, description
-        {"Spinner", WeaponType::Passive, 8.0f, 250.0f, 15.0f, 0.3f, 1.5f, 0.0f, false, 0.0f,
-         "Continuous on contact, resets on damage"},
-        {"Clamp", WeaponType::Active, 15.0f, 20.0f, 20.0f, 0.0f, 0.0f, 3.0f, false, 0.0f,
-         "Grapple and drag target"},
-        {"Hammer", WeaponType::Active, 35.0f, 150.0f, 25.0f, 1.5f, 0.0f, 0.0f, true, 0.5f,
-         "0.8s windup, ignores 50% armor"},
-        {"Battering Ram", WeaponType::Passive, 0.0f, 120.0f, 30.0f, 0.0f, 0.0f, 0.0f, false, 0.0f,
-         "Damage = speed * 2, rewards momentum"},
-        {"Flail", WeaponType::Passive, 12.0f, 100.0f, 20.0f, 0.0f, 0.0f, 0.0f, false, 0.0f,
-         "Tethered ball, trails rotation"},
-        {"Whip", WeaponType::Active, 20.0f, 60.0f, 12.0f, 2.0f, 0.0f, 0.0f, false, 0.0f,
-         "Long range, slow retract"},
-        {"Saw Blade", WeaponType::Passive, 6.0f, 40.0f, 18.0f, 0.2f, 0.0f, 0.0f, false, 0.0f,
-         "Side-mounted arc, punishes flankers"},
-        {"Thwack Bar", WeaponType::Passive, 15.0f, 90.0f, 22.0f, 0.3f, 0.0f, 0.0f, false, 0.0f,
-         "Rear-mounted, attack by spinning"},
-        {"Piston Punch", WeaponType::Active, 8.0f, 200.0f, 20.0f, 1.0f, 0.0f, 0.0f, false, 0.0f,
-         "Short range, huge knockback"},
-        {"Dual Spinners", WeaponType::Passive, 5.0f, 180.0f, 22.0f, 0.3f, 1.5f, 0.0f, false, 0.0f,
-         "Side-mounted pair, covers flanks"}
+        {"Spinner", WeaponType::Passive, 6.0f, 180.0f, 12.0f, 0.25f, 2.0f, 0.0f, false, 0.0f,
+         "Spin to charge, B to release"},
+        {"Clamp", WeaponType::Active, 12.0f, 15.0f, 18.0f, 0.0f, 0.0f, 2.5f, false, 0.0f,
+         "Grab and crush enemy"},
+        {"Hammer", WeaponType::Active, 45.0f, 120.0f, 28.0f, 2.0f, 0.0f, 0.0f, true, 0.6f,
+         "Windup overhead slam"},
+        {"Battering Ram", WeaponType::Passive, 0.0f, 200.0f, 35.0f, 0.0f, 0.0f, 0.0f, false, 0.0f,
+         "Damage scales with speed"},
+        {"Flail", WeaponType::Passive, 10.0f, 80.0f, 16.0f, 0.3f, 0.0f, 0.0f, false, 0.0f,
+         "Spin-based damage"},
+        {"Whip", WeaponType::Active, 18.0f, 50.0f, 10.0f, 1.8f, 0.0f, 0.0f, false, 0.0f,
+         "Long range strike"},
+        {"Saw Blade", WeaponType::Passive, 5.0f, 30.0f, 14.0f, 0.15f, 0.0f, 0.0f, false, 0.2f,
+         "Side-mounted continuous"},
+        {"Thwack Bar", WeaponType::Passive, 14.0f, 70.0f, 20.0f, 0.35f, 0.0f, 0.0f, false, 0.0f,
+         "Rear attack by spinning"},
+        {"Piston Punch", WeaponType::Active, 10.0f, 280.0f, 22.0f, 0.8f, 0.0f, 0.0f, false, 0.0f,
+         "Massive knockback burst"},
+        {"Dual Spinners", WeaponType::Passive, 4.0f, 140.0f, 20.0f, 0.25f, 2.0f, 0.0f, false, 0.0f,
+         "Side coverage, lower damage"}
     };
 
-    // Initialize Specials
+    // Initialize Specials - cooldown, duration
     specials = {
-        {"Boost", 3.0f, 1.5f, "Burst of speed forward"},
-        {"Anchor", 5.0f, 2.0f, "Cannot move, immune to knockback"},
-        {"Overdrive", 8.0f, 3.0f, "1.5x weapon damage, take 1.5x damage"},
-        {"Smoke", 10.0f, 4.0f, "Drop vision-obscuring cloud"},
-        {"Mine", 6.0f, 0.0f, "Drop mine, arms after 1s"},
-        {"EMP Pulse", 12.0f, 0.0f, "Disable nearby enemy weapons for 2s"},
-        {"Repair Swarm", 15.0f, 5.0f, "Heal 5 HP/second"},
-        {"Backlash", 10.0f, 3.0f, "Reflect 50% damage to attacker"},
-        {"Berserk", 8.0f, 4.0f, "1.5x speed, 0.5x turn rate"}
+        {"Boost", 4.0f, 0.8f, "Quick speed burst"},
+        {"Anchor", 6.0f, 2.5f, "Immovable, immune to knockback"},
+        {"Overdrive", 10.0f, 4.0f, "2x damage dealt and taken"},
+        {"Smoke", 8.0f, 5.0f, "Vision-blocking cloud"},
+        {"Mine", 5.0f, 0.0f, "Drop explosive mine"},
+        {"EMP Pulse", 15.0f, 0.0f, "Disable nearby weapons 2.5s"},
+        {"Repair Swarm", 18.0f, 6.0f, "Heal 4 HP/second"},
+        {"Backlash", 12.0f, 4.0f, "Reflect 60% damage"},
+        {"Berserk", 10.0f, 5.0f, "1.8x speed, 0.4x turn rate"}
     };
 }
 

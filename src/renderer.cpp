@@ -587,6 +587,9 @@ void Renderer::drawBot(const Bot& bot, SDL_Color color, float offsetX, float off
         }
     }
 
+    // Draw engine at rear
+    drawBotEngine(bot, color, offsetX, offsetY);
+
     // Draw front direction indicator
     float indicatorDist = bot.radius * 0.8f;
     float indicatorX = bx + facing.x * indicatorDist;
@@ -632,6 +635,108 @@ void Renderer::drawBot(const Bot& bot, SDL_Color color, float offsetX, float off
     if (bot.overdriveActive) {
         SDL_Color overdrive = {255, 200, 50, 150};
         drawCircleOutline(bx, by, bot.radius + 7, overdrive, 2.0f);
+    }
+}
+
+void Renderer::drawBotEngine(const Bot& bot, SDL_Color color, float offsetX, float offsetY) {
+    const auto& engine = ComponentRegistry::instance().getEngine(bot.engineIndex);
+    Vec2 facing = bot.getFacingVector();
+
+    float bx = bot.x + offsetX;
+    float by = bot.y + offsetY;
+
+    // Engine at rear of bot
+    float engineOffset = bot.radius * 0.7f;
+    float engineX = bx - facing.x * engineOffset;
+    float engineY = by - facing.y * engineOffset;
+
+    // Engine colors - metallic with exhaust glow
+    SDL_Color engineBody = {80, 85, 95, 255};
+    SDL_Color engineDark = {50, 55, 65, 255};
+    SDL_Color exhaustGlow = {255, 150, 50, 180};
+
+    // Boost/active effects make exhaust brighter
+    bool engineActive = (bot.throttle > 0.1f || bot.boostActive || bot.berserkActive);
+    if (engineActive) {
+        exhaustGlow = {255, 200, 100, 220};
+    }
+
+    if (engine.name == "Standard") {
+        // Simple rectangular engine block
+        drawRotatedRect(engineX, engineY, bot.radius * 0.5f, bot.radius * 0.4f, bot.angle, engineBody);
+        if (engineActive) {
+            float exX = engineX - facing.x * bot.radius * 0.3f;
+            float exY = engineY - facing.y * bot.radius * 0.3f;
+            drawFilledCircle(exX, exY, 5.0f, exhaustGlow);
+        }
+    }
+    else if (engine.name == "Torque Monster") {
+        // Big chunky engine with visible gears
+        drawRotatedRect(engineX, engineY, bot.radius * 0.6f, bot.radius * 0.55f, bot.angle, engineBody);
+        drawCircle(engineX, engineY, bot.radius * 0.15f, engineDark, true);
+        // Gear teeth effect
+        for (int i = 0; i < 6; ++i) {
+            float gearAngle = bot.angle + i * PI / 3.0f + SDL_GetTicks() / 200.0f;
+            float gx = engineX + std::cos(gearAngle) * bot.radius * 0.2f;
+            float gy = engineY + std::sin(gearAngle) * bot.radius * 0.2f;
+            drawFilledCircle(gx, gy, 3.0f, engineDark);
+        }
+    }
+    else if (engine.name == "Dragster") {
+        // Long exhausts/thrusters
+        Vec2 perp(-facing.y, facing.x);
+        float pipeLen = bot.radius * 0.5f;
+        // Two exhaust pipes
+        float p1x = engineX + perp.x * bot.radius * 0.25f;
+        float p1y = engineY + perp.y * bot.radius * 0.25f;
+        float p2x = engineX - perp.x * bot.radius * 0.25f;
+        float p2y = engineY - perp.y * bot.radius * 0.25f;
+        drawRotatedRect(p1x, p1y, pipeLen, bot.radius * 0.15f, bot.angle, engineBody);
+        drawRotatedRect(p2x, p2y, pipeLen, bot.radius * 0.15f, bot.angle, engineBody);
+        if (engineActive) {
+            float exDist = pipeLen * 0.6f;
+            drawFilledCircle(p1x - facing.x * exDist, p1y - facing.y * exDist, 6.0f, exhaustGlow);
+            drawFilledCircle(p2x - facing.x * exDist, p2y - facing.y * exDist, 6.0f, exhaustGlow);
+        }
+    }
+    else if (engine.name == "Omni-Drive") {
+        // Four small thrusters in cross pattern
+        for (int i = 0; i < 4; ++i) {
+            float thrusterAngle = bot.angle + i * PI / 2.0f;
+            float tx = bx + std::cos(thrusterAngle) * bot.radius * 0.6f;
+            float ty = by + std::sin(thrusterAngle) * bot.radius * 0.6f;
+            drawFilledCircle(tx, ty, bot.radius * 0.12f, engineBody);
+            if (engineActive) {
+                drawFilledCircle(tx, ty, bot.radius * 0.08f, exhaustGlow);
+            }
+        }
+    }
+    else if (engine.name == "Gyro-Stabilized") {
+        // Spinning gyroscope disc
+        drawFilledCircle(engineX, engineY, bot.radius * 0.3f, engineBody);
+        float gyroAngle = SDL_GetTicks() / 100.0f;
+        SDL_Color gyroRing = {120, 130, 150, 255};
+        drawCircleOutline(engineX, engineY, bot.radius * 0.25f, gyroRing, 2.0f);
+        // Spinning indicator
+        float gx = engineX + std::cos(gyroAngle) * bot.radius * 0.2f;
+        float gy = engineY + std::sin(gyroAngle) * bot.radius * 0.2f;
+        drawFilledCircle(gx, gy, 3.0f, {200, 200, 220, 255});
+    }
+    else if (engine.name == "Ramjet") {
+        // Large single thruster
+        Vec2 perp(-facing.y, facing.x);
+        float jetLen = bot.radius * 0.7f;
+        drawRotatedRect(engineX, engineY, jetLen, bot.radius * 0.35f, bot.angle, engineBody);
+        // Intake cone
+        float intakeX = engineX + facing.x * bot.radius * 0.2f;
+        float intakeY = engineY + facing.y * bot.radius * 0.2f;
+        drawFilledCircle(intakeX, intakeY, bot.radius * 0.12f, engineDark);
+        if (engineActive) {
+            float exDist = jetLen * 0.5f;
+            SDL_Color bigFlame = {255, 180, 80, 240};
+            drawFilledCircle(engineX - facing.x * exDist, engineY - facing.y * exDist, 10.0f, bigFlame);
+            drawFilledCircle(engineX - facing.x * exDist * 1.3f, engineY - facing.y * exDist * 1.3f, 6.0f, exhaustGlow);
+        }
     }
 }
 
