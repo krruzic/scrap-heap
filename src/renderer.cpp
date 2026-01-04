@@ -642,34 +642,40 @@ void Renderer::drawBotWeapon(const Bot& bot, SDL_Color color, float offsetX, flo
     float by = bot.y + offsetY;
 
     if (weapon.name == "Spinner") {
-        // Draw spinner disc - constant size, color indicates speed
-        float spinnerRadius = bot.radius * 0.45f;  // Smaller spinner
-        float spinnerX = bx + facing.x * bot.radius * 0.4f;
-        float spinnerY = by + facing.y * bot.radius * 0.4f;
+        // Draw spinner disc - larger size for better hit area
+        float spinnerRadius = bot.radius * 0.75f;  // Bigger spinner
+        float spinnerX = bx + facing.x * bot.radius * 0.3f;
+        float spinnerY = by + facing.y * bot.radius * 0.3f;
 
-        // Base spinner (always visible)
-        SDL_Color baseColor = {120, 120, 130, 255};
+        // Base spinner disc (always visible)
+        SDL_Color baseColor = {100, 100, 110, 255};
         drawCircle(spinnerX, spinnerY, spinnerRadius, baseColor, true);
 
-        // Spinning blades overlay - brightness based on speed
-        if (bot.spinnerSpeed > 0.1f) {
-            uint8_t intensity = static_cast<uint8_t>(155 + 100 * bot.spinnerSpeed);
-            SDL_Color bladeColor = {intensity, static_cast<uint8_t>(intensity * 0.6f), 50, 255};
+        // Spinning blades - always animate using a continuous rotation based on time
+        // Use bot.angle as base plus a fast-spinning animation
+        // Color intensity based on spinnerSpeed
+        uint8_t intensity = static_cast<uint8_t>(155 + 100 * bot.spinnerSpeed);
+        SDL_Color bladeColor = {intensity, static_cast<uint8_t>(intensity * 0.6f), 50, 255};
 
-            // Draw spinning blade lines
-            float bladeAngle = bot.angle + bot.spinnerSpeed * 20.0f;  // Rotate with speed
-            for (int i = 0; i < 4; ++i) {
-                float a = bladeAngle + i * PI / 2.0f;
-                float bx1 = spinnerX + std::cos(a) * spinnerRadius * 0.3f;
-                float by1 = spinnerY + std::sin(a) * spinnerRadius * 0.3f;
-                float bx2 = spinnerX + std::cos(a) * spinnerRadius * 0.95f;
-                float by2 = spinnerY + std::sin(a) * spinnerRadius * 0.95f;
-                drawLine(bx1, by1, bx2, by2, bladeColor, 3.0f);
-            }
+        // Blade animation - spins fast continuously, speed affects color only
+        // Use SDL_GetTicks for continuous animation independent of spinnerSpeed
+        float animTime = SDL_GetTicks() / 1000.0f;
+        float spinRate = 8.0f + bot.spinnerSpeed * 12.0f;  // Base spin + speed bonus
+        float bladeAngle = bot.angle + animTime * spinRate;
+
+        for (int i = 0; i < 4; ++i) {
+            float a = bladeAngle + i * PI / 2.0f;
+            float bx1 = spinnerX + std::cos(a) * spinnerRadius * 0.2f;
+            float by1 = spinnerY + std::sin(a) * spinnerRadius * 0.2f;
+            float bx2 = spinnerX + std::cos(a) * spinnerRadius * 0.95f;
+            float by2 = spinnerY + std::sin(a) * spinnerRadius * 0.95f;
+            drawLine(bx1, by1, bx2, by2, bladeColor, 4.0f);
         }
 
-        // Metal rim
-        drawCircleOutline(spinnerX, spinnerY, spinnerRadius, {180, 180, 190, 255}, 2.0f);
+        // Metal rim with glow when at high speed
+        SDL_Color rimColor = bot.spinnerSpeed > 0.8f ?
+            SDL_Color{255, 200, 100, 255} : SDL_Color{180, 180, 190, 255};
+        drawCircleOutline(spinnerX, spinnerY, spinnerRadius, rimColor, 2.0f);
     }
     else if (weapon.name == "Clamp") {
         // Draw clamp jaws

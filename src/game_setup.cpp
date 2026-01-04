@@ -287,61 +287,17 @@ void GameSetupScreen::handleSlotInput(int slotIndex, const ControllerState* cont
     }
 
     if (confirm) {
-        // A button advances to next value for component options, or confirms for OK
-        switch (slot.currentOption) {
-            case ConfigOption::Tag: {
-                // Advance to next available tag
-                if (!availableTags.empty()) {
-                    int pos = -1;
-                    for (int i = 0; i < static_cast<int>(availableTags.size()); ++i) {
-                        if (availableTags[i] == slot.tagIndex) {
-                            pos = i;
-                            break;
-                        }
-                    }
-                    // Cycle: -1 (default) -> first tag -> ... -> last tag -> -1
-                    pos = (pos + 1) % (static_cast<int>(availableTags.size()) + 1);
-                    slot.tagIndex = (pos == static_cast<int>(availableTags.size())) ?
-                                    -1 : availableTags[pos];
-                }
-                break;
+        // A button advances to next option (like pressing down), or confirms for OK
+        if (slot.currentOption == ConfigOption::OK) {
+            slot.state = PlayerSlotState::Ready;
+            if (firstReadyPlayer < 0) {
+                firstReadyPlayer = slotIndex;
             }
-            case ConfigOption::Engine:
-                slot.engineIndex = (slot.engineIndex + 1) % registry.getEngineCount();
-                break;
-            case ConfigOption::Frame:
-                slot.frameIndex = (slot.frameIndex + 1) % registry.getFrameCount();
-                break;
-            case ConfigOption::Weapon:
-                slot.weaponIndex = (slot.weaponIndex + 1) % registry.getWeaponCount();
-                break;
-            case ConfigOption::Special:
-                slot.specialIndex = (slot.specialIndex + 1) % registry.getSpecialCount();
-                break;
-            case ConfigOption::Color: {
-                // Advance to next available color
-                if (!availableColors.empty()) {
-                    int pos = -1;
-                    for (int i = 0; i < static_cast<int>(availableColors.size()); ++i) {
-                        if (availableColors[i] == slot.colorIndex) {
-                            pos = i;
-                            break;
-                        }
-                    }
-                    if (pos < 0) pos = 0;
-                    pos = (pos + 1) % static_cast<int>(availableColors.size());
-                    slot.colorIndex = availableColors[pos];
-                }
-                break;
-            }
-            case ConfigOption::OK:
-                slot.state = PlayerSlotState::Ready;
-                if (firstReadyPlayer < 0) {
-                    firstReadyPlayer = slotIndex;
-                }
-                break;
-            default:
-                break;
+        } else {
+            // Move to next option
+            int opt = static_cast<int>(slot.currentOption);
+            opt = (opt + 1) % static_cast<int>(ConfigOption::COUNT);
+            slot.currentOption = static_cast<ConfigOption>(opt);
         }
     }
 }

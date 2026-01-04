@@ -647,9 +647,6 @@ void BattleManager::render(const BattleState& state) {
     // Draw stage
     renderer.drawStage(state.stage, state.cameraOffsetX, state.cameraOffsetY);
 
-    // Draw shrinking wall (before bots so they appear on top)
-    renderShrinkingWall(state);
-
     // Draw powerups
     for (const auto& powerup : state.powerups) {
         renderer.drawPowerup(powerup, state.cameraOffsetX, state.cameraOffsetY);
@@ -689,6 +686,9 @@ void BattleManager::render(const BattleState& state) {
     for (const auto& event : state.combatEvents) {
         renderer.drawCombatEvent(event, state.cameraOffsetX, state.cameraOffsetY);
     }
+
+    // Draw shrinking wall ON TOP of bots so storm is visible over them
+    renderShrinkingWall(state);
 
     // Draw HUD
     renderHUD(state);
@@ -1053,83 +1053,77 @@ void BattleManager::renderHUD(const BattleState& state) {
             renderer.drawRect(x, escapeY, barWidth * bot.grabEscapeProgress, 6, escapeColor, true);
         }
 
-        // === ABILITY STATUS INDICATORS ===
-        float abilityY = barY + barHeight + 12;
-        float iconSize = 14;
-        float iconSpacing = 18;
+        // === ABILITY STATUS INDICATORS (CIRCLES, BIGGER, ALWAYS VISIBLE) ===
+        float abilityY = barY + barHeight + 14;
+        float iconRadius = 10.0f;  // Bigger circles
+        float iconSpacing = 26.0f;
 
         // Special ability cooldown
         const auto& special = ComponentRegistry::instance().getSpecial(bot.specialIndex);
         float cooldownRatio = bot.specialCooldown / special.cooldown;
 
-        SDL_Color abilityBg = {30, 30, 40, 200};
+        SDL_Color emptyCircle = {50, 50, 60, 180};
         SDL_Color abilityReady = {100, 255, 100, 255};
-        SDL_Color abilityOnCooldown = {100, 100, 100, 200};
-        SDL_Color abilityActive = {255, 200, 50, 255};
+        SDL_Color abilityOnCooldown = {80, 80, 90, 200};
 
-        // Draw special ability icon
-        renderer.drawRect(x, abilityY, iconSize, iconSize, abilityBg, true);
+        // Draw special ability circle (always visible)
+        float specialX = x + iconRadius;
+        renderer.drawCircle(specialX, abilityY, iconRadius, emptyCircle, true);
+
         if (bot.specialActiveTimer > 0) {
-            // Active - show yellow pulsing
+            // Active - show yellow pulsing filled circle
             float pulse = 0.5f + 0.5f * std::sin(state.matchTimer * 10.0f);
             SDL_Color activeColor = {255, static_cast<Uint8>(180 + 75 * pulse), 50, 255};
-            renderer.drawRect(x + 1, abilityY + 1, iconSize - 2, iconSize - 2, activeColor, true);
+            renderer.drawCircle(specialX, abilityY, iconRadius - 1, activeColor, true);
         } else if (bot.specialCooldown <= 0) {
-            // Ready
-            renderer.drawRect(x + 1, abilityY + 1, iconSize - 2, iconSize - 2, abilityReady, true);
+            // Ready - green filled circle
+            renderer.drawCircle(specialX, abilityY, iconRadius - 1, abilityReady, true);
         } else {
-            // On cooldown - show progress
-            float readyH = iconSize * (1.0f - cooldownRatio);
-            renderer.drawRect(x + 1, abilityY + iconSize - readyH, iconSize - 2, readyH - 1, abilityOnCooldown, true);
+            // On cooldown - partial fill from bottom up
+            renderer.drawCircle(specialX, abilityY, iconRadius - 1, abilityOnCooldown, true);
         }
-        renderer.drawRectOutline(x, abilityY, iconSize, iconSize, {80, 80, 100, 255}, 1.0f);
+        renderer.drawCircleOutline(specialX, abilityY, iconRadius, {100, 100, 120, 255}, 2.0f);
 
-        // "S" label for special
-        renderer.drawText("S", x + iconSize / 2, abilityY + 2,
-                         renderer.getFontSmall(), {255, 255, 255, 200}, TextAlign::Center);
+        // Powerup indicators - 3 fixed circles that show empty when no powerup
+        float powerup1X = x + iconSpacing + iconRadius;       // Speed boost slot
+        float powerup2X = x + iconSpacing * 2 + iconRadius;   // Damage boost slot
+        float powerup3X = x + iconSpacing * 3 + iconRadius;   // Shield/Ability slot
 
-        // Powerup status icons
-        float powerupX = x + iconSpacing;
-
-        // Speed boost indicator
+        // Speed boost circle (always visible)
+        renderer.drawCircle(powerup1X, abilityY, iconRadius, emptyCircle, true);
         if (bot.speedBoostTimer > 0) {
             SDL_Color speedColor = {255, 255, 80, 255};
-            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, speedColor, true);
-            renderer.drawText("!", powerupX + iconSize / 2, abilityY + 2,
-                             renderer.getFontSmall(), {0, 0, 0, 255}, TextAlign::Center);
-            powerupX += iconSpacing;
+            renderer.drawCircle(powerup1X, abilityY, iconRadius - 1, speedColor, true);
         }
+        renderer.drawCircleOutline(powerup1X, abilityY, iconRadius, {100, 100, 120, 255}, 2.0f);
 
-        // Damage boost indicator
+        // Damage boost circle (always visible)
+        renderer.drawCircle(powerup2X, abilityY, iconRadius, emptyCircle, true);
         if (bot.damageBoostTimer > 0) {
             SDL_Color dmgColor = {255, 80, 80, 255};
-            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, dmgColor, true);
-            renderer.drawText("!", powerupX + iconSize / 2, abilityY + 2,
-                             renderer.getFontSmall(), {255, 255, 255, 255}, TextAlign::Center);
-            powerupX += iconSpacing;
+            renderer.drawCircle(powerup2X, abilityY, iconRadius - 1, dmgColor, true);
         }
+        renderer.drawCircleOutline(powerup2X, abilityY, iconRadius, {100, 100, 120, 255}, 2.0f);
 
-        // Show active ability effects
-        if (bot.boostActive) {
-            SDL_Color boostColor = {80, 200, 255, 255};
-            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, boostColor, true);
-            renderer.drawText("B", powerupX + iconSize / 2, abilityY + 2,
-                             renderer.getFontSmall(), {0, 0, 0, 255}, TextAlign::Center);
-            powerupX += iconSpacing;
-        }
+        // Active ability/shield circle (always visible)
+        renderer.drawCircle(powerup3X, abilityY, iconRadius, emptyCircle, true);
         if (bot.shieldActive) {
-            SDL_Color shieldColor = {100, 150, 255, 255};
-            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, shieldColor, true);
-            renderer.drawText("D", powerupX + iconSize / 2, abilityY + 2,
-                             renderer.getFontSmall(), {255, 255, 255, 255}, TextAlign::Center);
-            powerupX += iconSpacing;
-        }
-        if (bot.berserkActive) {
+            SDL_Color shieldColor = {100, 180, 255, 255};
+            renderer.drawCircle(powerup3X, abilityY, iconRadius - 1, shieldColor, true);
+        } else if (bot.boostActive) {
+            SDL_Color boostColor = {80, 200, 255, 255};
+            renderer.drawCircle(powerup3X, abilityY, iconRadius - 1, boostColor, true);
+        } else if (bot.berserkActive) {
             SDL_Color berserkColor = {255, 50, 50, 255};
-            renderer.drawRect(powerupX, abilityY, iconSize, iconSize, berserkColor, true);
-            renderer.drawText("R", powerupX + iconSize / 2, abilityY + 2,
-                             renderer.getFontSmall(), {255, 255, 255, 255}, TextAlign::Center);
+            renderer.drawCircle(powerup3X, abilityY, iconRadius - 1, berserkColor, true);
+        } else if (bot.anchorActive) {
+            SDL_Color anchorColor = {200, 200, 200, 255};
+            renderer.drawCircle(powerup3X, abilityY, iconRadius - 1, anchorColor, true);
+        } else if (bot.overdriveActive) {
+            SDL_Color overdriveColor = {255, 200, 50, 255};
+            renderer.drawCircle(powerup3X, abilityY, iconRadius - 1, overdriveColor, true);
         }
+        renderer.drawCircleOutline(powerup3X, abilityY, iconRadius, {100, 100, 120, 255}, 2.0f);
     }
 
     // === CORNER SCORE BOXES - Retro arcade style ===

@@ -655,9 +655,9 @@ void Combat::activateSpecial(Bot& bot, std::vector<Bot>& allBots,
         bot.boostActive = true;
         bot.specialActiveTimer = special.duration;
 
-        // Apply immediate forward impulse for burst effect
+        // Apply strong forward impulse for burst launch effect
         Vec2 facing = bot.getFacingVector();
-        float boostImpulse = 150.0f;
+        float boostImpulse = 600.0f;  // Strong launch forward
         Physics::applyImpulse(bot, Vec2(facing.x * boostImpulse, facing.y * boostImpulse));
     }
     else if (special.name == "Anchor") {
