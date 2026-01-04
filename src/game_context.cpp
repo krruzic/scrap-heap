@@ -60,7 +60,6 @@ bool initializeContext(GameContext& ctx) {
         return false;
     }
 
-    // Create renderer
     ctx.renderer = SDL_CreateRenderer(ctx.window, nullptr);
     if (!ctx.renderer) {
         SDL_Log("Failed to create renderer: %s", SDL_GetError());
@@ -68,6 +67,8 @@ bool initializeContext(GameContext& ctx) {
     }
 
     SDL_SetRenderVSync(ctx.renderer, 1);
+    SDL_SetRenderLogicalPresentation(ctx.renderer, WINDOW_WIDTH, WINDOW_HEIGHT,
+                                      SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
     // Initialize renderer (loads fonts)
     if (!Renderer::instance().initialize(ctx.renderer, "assets/font.ttf")) {
@@ -124,6 +125,14 @@ void handleEvents(GameContext& ctx) {
         if (event.type == SDL_EVENT_QUIT) {
             ctx.running = false;
             return;
+        }
+
+        if (event.type == SDL_EVENT_KEY_DOWN) {
+            if (event.key.key == SDLK_F11 ||
+                (event.key.key == SDLK_RETURN && (event.key.mod & SDL_KMOD_ALT))) {
+                bool isFullscreen = SDL_GetWindowFlags(ctx.window) & SDL_WINDOW_FULLSCREEN;
+                SDL_SetWindowFullscreen(ctx.window, !isFullscreen);
+            }
         }
 
         input.processEvent(event);
