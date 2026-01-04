@@ -301,9 +301,9 @@ void InputManager::applyInputToBot(Bot& bot, int playerSlot) {
         bot.inputLeft = controller->dpadLeft;
         bot.inputRight = controller->dpadRight;
 
-        // Buttons
-        bot.inputWeapon = controller->buttonA;
-        bot.inputSpecial = controller->buttonB;
+        // Buttons: B = attack, A = special
+        bot.inputWeapon = controller->buttonB;
+        bot.inputSpecial = controller->buttonA;
         bot.inputPowerup = controller->buttonX || controller->buttonY;
     }
 

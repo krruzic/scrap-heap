@@ -271,10 +271,17 @@ void Combat::processSpinner(Bot& attacker, Bot& target,
     const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
     const auto& targetWeapon = ComponentRegistry::instance().getWeapon(target.weaponIndex);
 
+    Vec2 attackerFacing = attacker.getFacingVector();
+    Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
+    toTarget = toTarget.normalized();
+
+    float attackerDot = attackerFacing.dot(toTarget);
+    if (attackerDot < 0.3f) return;
+
     float damage;
     float knockback;
 
-    if (attacker.inputSpecial && attacker.spinnerSpeed > 0.1f) {
+    if (attacker.inputWeapon && attacker.spinnerSpeed > 0.1f) {
         damage = weapon.damage * attacker.spinnerSpeed;
         knockback = weapon.knockback * attacker.spinnerSpeed;
         attacker.spinnerSpeed = 0.0f;
@@ -286,28 +293,30 @@ void Combat::processSpinner(Bot& attacker, Bot& target,
     if (attacker.damageBoostTimer > 0) damage *= 1.5f;
     if (attacker.overdriveActive) damage *= 1.5f;
 
-    Vec2 knockDir(target.x - attacker.x, target.y - attacker.y);
+    Vec2 knockDir = toTarget;
 
-    bool targetHasSpinner = (targetWeapon.name == "Spinner" || targetWeapon.name == "Dual Spinners")
-                            && target.spinnerSpeed >= 0.1f;
+    bool targetHasSpinner = (targetWeapon.name == "Spinner" || targetWeapon.name == "Dual Spinners");
 
     if (targetHasSpinner) {
-        float targetDamage = targetWeapon.damage * 0.5f;
-        if (target.inputSpecial && target.spinnerSpeed > 0.1f) {
-            targetDamage = targetWeapon.damage * target.spinnerSpeed;
-            target.spinnerSpeed = 0.0f;
+        Vec2 targetFacing = target.getFacingVector();
+        float targetDot = targetFacing.dot(Vec2(-toTarget.x, -toTarget.y));
+
+        if (targetDot > 0.3f) {
+            float targetDamage = targetWeapon.damage * 0.5f;
+            if (target.damageBoostTimer > 0) targetDamage *= 1.5f;
+            if (target.overdriveActive) targetDamage *= 1.5f;
+
+            Vec2 reverseKnockDir(-knockDir.x, -knockDir.y);
+            float targetKnockback = targetWeapon.knockback * 0.5f;
+
+            applyDamage(target, damage * 0.5f, knockback * 0.5f, knockDir, &attacker, events);
+            applyDamage(attacker, targetDamage * 0.5f, targetKnockback * 0.5f, reverseKnockDir, &target, events);
+
+            attacker.spinnerSpeed *= 0.6f;
+            target.spinnerSpeed *= 0.6f;
+        } else {
+            applyDamage(target, damage, knockback, knockDir, &attacker, events);
         }
-        if (target.damageBoostTimer > 0) targetDamage *= 1.5f;
-        if (target.overdriveActive) targetDamage *= 1.5f;
-
-        Vec2 reverseKnockDir(-knockDir.x, -knockDir.y);
-        float targetKnockback = targetWeapon.knockback * 0.5f;
-
-        applyDamage(target, damage, knockback, knockDir, &attacker, events);
-        applyDamage(attacker, targetDamage * 0.7f, targetKnockback * 0.7f, reverseKnockDir, &target, events);
-
-        attacker.spinnerSpeed *= 0.6f;
-        target.spinnerSpeed *= 0.6f;
     } else {
         applyDamage(target, damage, knockback, knockDir, &attacker, events);
     }
@@ -647,7 +656,7 @@ void Combat::processDualSpinners(Bot& attacker, Bot& target,
         float damage;
         float knockback;
 
-        if (attacker.inputSpecial && attacker.spinnerSpeed > 0.1f) {
+        if (attacker.inputWeapon && attacker.spinnerSpeed > 0.1f) {
             damage = weapon.damage * attacker.spinnerSpeed;
             knockback = weapon.knockback * attacker.spinnerSpeed;
             attacker.spinnerSpeed = 0.0f;
