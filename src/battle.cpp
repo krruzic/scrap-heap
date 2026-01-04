@@ -767,8 +767,8 @@ void BattleManager::renderShrinkingWall(const BattleState& state) {
     float safeW = state.wall.right - state.wall.left;
     float safeH = state.wall.bottom - state.wall.top;
 
-    uint8_t baseAlpha = static_cast<uint8_t>(50 + 15 * pulse);
-    SDL_Color stormBase = {40, 20, 80, baseAlpha};
+    uint8_t baseAlpha = static_cast<uint8_t>(120 + 30 * pulse);
+    SDL_Color stormBase = {60, 20, 100, baseAlpha};
 
     // Draw storm zone rectangles (the dangerous areas outside safe zone)
     // Left zone
@@ -792,8 +792,8 @@ void BattleManager::renderShrinkingWall(const BattleState& state) {
                          state.stage.height - state.wall.bottom, stormBase, true);
     }
 
-    uint8_t energyAlpha = static_cast<uint8_t>(20 + 20 * fastPulse);
-    SDL_Color energyColor = {100, 50, 180, energyAlpha};
+    uint8_t energyAlpha = static_cast<uint8_t>(40 + 30 * fastPulse);
+    SDL_Color energyColor = {120, 60, 200, energyAlpha};
 
     if (state.wall.left > 0) {
         renderer.drawRect(ox, oy, state.wall.left, state.stage.height, energyColor, true);

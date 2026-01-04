@@ -4,6 +4,7 @@
 #include "data.h"
 #include "components.h"
 #include "stage.h"
+#include "bot.h"
 #include <algorithm>
 
 namespace ScrapHeap {
@@ -926,237 +927,26 @@ void GameSetupScreen::renderStatsCompact(const BotStats& stats, float x, float y
 void GameSetupScreen::renderBotPreview(const PlayerSlot& slot, float centerX, float centerY, float size) {
     auto& renderer = Renderer::instance();
     auto& registry = ComponentRegistry::instance();
-
     const auto& frame = registry.getFrame(slot.frameIndex);
-    const auto& weapon = registry.getWeapon(slot.weaponIndex);
+
+    Bot previewBot;
+    previewBot.x = centerX;
+    previewBot.y = centerY;
+    previewBot.angle = -PI / 2.0f;
+    previewBot.frameIndex = slot.frameIndex;
+    previewBot.engineIndex = slot.engineIndex;
+    previewBot.weaponIndex = slot.weaponIndex;
+    previewBot.specialIndex = slot.specialIndex;
+    previewBot.colorIndex = slot.colorIndex;
+    previewBot.radius = frame.radius * (size / 50.0f);
+    previewBot.isAlive = true;
+    previewBot.spinnerSpeed = 0.5f;
+
     SDL_Color playerColor = Renderer::getPlayerColor(slot.colorIndex);
+    renderer.drawBot(previewBot, playerColor, 0, 0);
 
-    // Scale based on frame radius
-    float scale = size / 50.0f;
-    float bodyRadius = frame.radius * scale;
-
-    // Preview facing upward (angle = -PI/2)
-    float angle = -PI / 2.0f;
-    float facingX = 0.0f;
-    float facingY = -1.0f;
-
-    // Colors
-    SDL_Color shadowColor = {0, 0, 0, 80};
-    SDL_Color darkColor = {
-        static_cast<Uint8>(playerColor.r * 0.6f),
-        static_cast<Uint8>(playerColor.g * 0.6f),
-        static_cast<Uint8>(playerColor.b * 0.6f),
-        255
-    };
-    SDL_Color lightColor = {
-        static_cast<Uint8>(std::min(255, playerColor.r + 40)),
-        static_cast<Uint8>(std::min(255, playerColor.g + 40)),
-        static_cast<Uint8>(std::min(255, playerColor.b + 40)),
-        255
-    };
-
-    float shadowOffset = 3.0f;
-
-    // Draw body based on frame shape
-    switch (frame.shape) {
-        case FrameShape::Square: {
-            float bodySize = bodyRadius * 1.6f;
-            renderer.drawRotatedRect(centerX + shadowOffset, centerY + shadowOffset,
-                                    bodySize, bodySize, angle, shadowColor);
-            renderer.drawRotatedRect(centerX, centerY, bodySize, bodySize, angle, playerColor);
-            renderer.drawRotatedRect(centerX, centerY, bodySize * 0.7f, bodySize * 0.7f, angle, lightColor);
-            break;
-        }
-        case FrameShape::Rectangle: {
-            float w = bodyRadius * 2.2f;
-            float h = bodyRadius * 1.4f;
-            renderer.drawRotatedRect(centerX + shadowOffset, centerY + shadowOffset, w, h, angle, shadowColor);
-            renderer.drawRotatedRect(centerX, centerY, w, h, angle, playerColor);
-            // Track marks
-            renderer.drawRotatedRect(centerX - h * 0.3f, centerY, w * 0.9f, h * 0.2f, angle, darkColor);
-            renderer.drawRotatedRect(centerX + h * 0.3f, centerY, w * 0.9f, h * 0.2f, angle, darkColor);
-            break;
-        }
-        case FrameShape::Triangle: {
-            float triSize = bodyRadius * 1.8f;
-            float frontX = centerX + facingX * triSize * 0.6f;
-            float frontY = centerY + facingY * triSize * 0.6f;
-            float backX = centerX - facingX * triSize * 0.4f;
-            float backY = centerY - facingY * triSize * 0.4f;
-            // Shadow
-            renderer.drawTriangle(frontX + shadowOffset, frontY + shadowOffset,
-                                 backX - triSize * 0.5f + shadowOffset, backY + shadowOffset,
-                                 backX + triSize * 0.5f + shadowOffset, backY + shadowOffset,
-                                 shadowColor, true);
-            // Body
-            renderer.drawTriangle(frontX, frontY,
-                                 backX - triSize * 0.5f, backY,
-                                 backX + triSize * 0.5f, backY,
-                                 playerColor, true);
-            // Cockpit
-            renderer.drawTriangle(centerX + facingX * triSize * 0.1f, centerY + facingY * triSize * 0.1f,
-                                 centerX - triSize * 0.2f, centerY,
-                                 centerX + triSize * 0.2f, centerY,
-                                 lightColor, true);
-            break;
-        }
-        case FrameShape::Circle: {
-            renderer.drawCircle(centerX + shadowOffset, centerY + shadowOffset, bodyRadius, shadowColor);
-            renderer.drawCircle(centerX, centerY, bodyRadius, playerColor);
-            renderer.drawCircle(centerX - 2, centerY - 2, bodyRadius * 0.5f, lightColor);
-            break;
-        }
-        case FrameShape::Diamond: {
-            float dw = bodyRadius * 1.5f;
-            float dh = bodyRadius * 1.9f;
-            renderer.drawDiamond(centerX + shadowOffset, centerY + shadowOffset, dw, dh, angle, shadowColor);
-            renderer.drawDiamond(centerX, centerY, dw, dh, angle, playerColor);
-            renderer.drawDiamond(centerX, centerY, dw * 0.4f, dh * 0.5f, angle, lightColor);
-            break;
-        }
-        case FrameShape::Hexagon: {
-            renderer.drawHexagon(centerX + shadowOffset, centerY + shadowOffset, bodyRadius, angle, shadowColor, true);
-            renderer.drawHexagon(centerX, centerY, bodyRadius, angle, playerColor, true);
-            renderer.drawHexagon(centerX, centerY, bodyRadius * 0.5f, angle + PI / 6.0f, lightColor, true);
-            break;
-        }
-    }
-
-    // Draw front direction indicator
-    float indicatorDist = bodyRadius * 0.8f;
-    float indicatorX = centerX + facingX * indicatorDist;
-    float indicatorY = centerY + facingY * indicatorDist;
-    SDL_Color indicatorColor = {255, 255, 255, 200};
-    renderer.drawCircle(indicatorX, indicatorY, 3.0f, indicatorColor);
-
-    // === ENGINE VISUAL EFFECTS ===
-    const auto& engine = registry.getEngine(slot.engineIndex);
-    SDL_Color exhaustColor = {80, 80, 90, 255};
-    SDL_Color engineColor = {60, 60, 70, 255};
-
-    if (engine.name == "Standard") {
-        // Basic engine block at rear
-        float exW = bodyRadius * 0.3f;
-        float exH = bodyRadius * 0.4f;
-        renderer.drawRotatedRect(centerX - facingX * bodyRadius * 0.8f,
-                                centerY - facingY * bodyRadius * 0.8f,
-                                exW, exH, angle, engineColor);
-    } else if (engine.name == "Torque Monster") {
-        // Large engine housing
-        float exW = bodyRadius * 0.5f;
-        float exH = bodyRadius * 0.5f;
-        renderer.drawRotatedRect(centerX - facingX * bodyRadius * 0.7f,
-                                centerY - facingY * bodyRadius * 0.7f,
-                                exW, exH, angle, {70, 50, 30, 255});
-        // Big exhaust pipes
-        renderer.drawCircle(centerX - facingX * bodyRadius - bodyRadius * 0.25f,
-                           centerY - facingY * bodyRadius, 6.0f * scale, exhaustColor);
-        renderer.drawCircle(centerX - facingX * bodyRadius + bodyRadius * 0.25f,
-                           centerY - facingY * bodyRadius, 6.0f * scale, exhaustColor);
-    } else if (engine.name == "Dragster") {
-        // Streamlined rear with flame effects
-        float exW = bodyRadius * 0.6f;
-        float exH = bodyRadius * 0.25f;
-        renderer.drawRotatedRect(centerX - facingX * bodyRadius * 1.0f,
-                                centerY - facingY * bodyRadius * 1.0f,
-                                exW, exH, angle, {100, 40, 20, 255});
-        // Flame effect (orange-red circles)
-        SDL_Color flameOuter = {255, 100, 20, 150};
-        SDL_Color flameInner = {255, 200, 50, 200};
-        renderer.drawCircle(centerX - facingX * bodyRadius * 1.3f,
-                           centerY - facingY * bodyRadius * 1.3f, 8.0f * scale, flameOuter);
-        renderer.drawCircle(centerX - facingX * bodyRadius * 1.3f,
-                           centerY - facingY * bodyRadius * 1.3f, 4.0f * scale, flameInner);
-    } else if (engine.name == "Omni-Drive") {
-        // Wheel/thruster pods on sides
-        SDL_Color thrusterColor = {50, 100, 150, 255};
-        renderer.drawCircle(centerX - bodyRadius * 0.9f, centerY, 5.0f * scale, thrusterColor);
-        renderer.drawCircle(centerX + bodyRadius * 0.9f, centerY, 5.0f * scale, thrusterColor);
-        renderer.drawCircle(centerX, centerY - bodyRadius * 0.9f, 5.0f * scale, thrusterColor);
-        renderer.drawCircle(centerX, centerY + bodyRadius * 0.9f, 5.0f * scale, thrusterColor);
-    } else if (engine.name == "Gyro-Stabilized") {
-        // Central gyroscope ring
-        SDL_Color gyroOuter = {100, 100, 120, 255};
-        SDL_Color gyroInner = {150, 150, 200, 255};
-        renderer.drawCircleOutline(centerX, centerY, bodyRadius * 0.4f, gyroOuter, 3.0f);
-        renderer.drawCircle(centerX, centerY, bodyRadius * 0.15f, gyroInner);
-    } else if (engine.name == "Ramjet") {
-        // Side-mounted jet engines
-        SDL_Color jetColor = {80, 80, 100, 255};
-        float jetW = bodyRadius * 0.3f;
-        float jetH = bodyRadius * 0.7f;
-        renderer.drawRotatedRect(centerX - bodyRadius * 0.8f, centerY, jetW, jetH, angle, jetColor);
-        renderer.drawRotatedRect(centerX + bodyRadius * 0.8f, centerY, jetW, jetH, angle, jetColor);
-        // Jet flames
-        SDL_Color jetFlame = {100, 200, 255, 180};
-        renderer.drawCircle(centerX - bodyRadius * 0.8f - facingX * bodyRadius * 0.5f,
-                           centerY - facingY * bodyRadius * 0.5f, 4.0f * scale, jetFlame);
-        renderer.drawCircle(centerX + bodyRadius * 0.8f - facingX * bodyRadius * 0.5f,
-                           centerY - facingY * bodyRadius * 0.5f, 4.0f * scale, jetFlame);
-    }
-
-    // Draw weapon based on type
-    SDL_Color metalColor = {180, 180, 200, 255};
-
-    if (weapon.name == "Spinner") {
-        float spinnerRadius = bodyRadius * 0.6f;
-        float spinnerX = centerX + facingX * bodyRadius * 0.3f;
-        float spinnerY = centerY + facingY * bodyRadius * 0.3f;
-        SDL_Color spinnerColor = {255, 150, 50, 255};
-        renderer.drawCircle(spinnerX, spinnerY, spinnerRadius, spinnerColor);
-        renderer.drawCircleOutline(spinnerX, spinnerY, spinnerRadius, metalColor, 2.0f);
-    } else if (weapon.name == "Hammer") {
-        float hammerW = bodyRadius * 0.3f;
-        float hammerL = bodyRadius * 1.0f;
-        renderer.drawRotatedRect(centerX + facingX * bodyRadius * 0.8f,
-                                centerY + facingY * bodyRadius * 0.8f,
-                                hammerW, hammerL, angle, metalColor);
-        renderer.drawRotatedRect(centerX + facingX * bodyRadius * 1.3f,
-                                centerY + facingY * bodyRadius * 1.3f,
-                                hammerW * 2.5f, hammerW * 1.2f, angle, {100, 100, 110, 255});
-    } else if (weapon.name == "Clamp") {
-        float clampLen = bodyRadius * 0.8f;
-        float clampW = bodyRadius * 0.15f;
-        renderer.drawRotatedRect(centerX - bodyRadius * 0.3f + facingX * bodyRadius,
-                                centerY + facingY * bodyRadius,
-                                clampW, clampLen, angle - 0.2f, metalColor);
-        renderer.drawRotatedRect(centerX + bodyRadius * 0.3f + facingX * bodyRadius,
-                                centerY + facingY * bodyRadius,
-                                clampW, clampLen, angle + 0.2f, metalColor);
-    } else if (weapon.name == "Battering Ram") {
-        float ramW = bodyRadius * 1.2f;
-        float ramH = bodyRadius * 0.4f;
-        renderer.drawRotatedRect(centerX + facingX * bodyRadius * 1.2f,
-                                centerY + facingY * bodyRadius * 1.2f,
-                                ramW, ramH, angle, metalColor);
-    } else if (weapon.name == "Saw Blade") {
-        float sawRadius = bodyRadius * 0.4f;
-        SDL_Color sawColor = {200, 200, 220, 255};
-        renderer.drawCircle(centerX - bodyRadius * 0.8f, centerY, sawRadius, sawColor);
-        renderer.drawCircle(centerX + bodyRadius * 0.8f, centerY, sawRadius, sawColor);
-    } else if (weapon.name == "Dual Spinners") {
-        float spinRadius = bodyRadius * 0.35f;
-        SDL_Color spinColor = {255, 150, 50, 255};
-        renderer.drawCircle(centerX - bodyRadius * 0.7f, centerY, spinRadius, spinColor);
-        renderer.drawCircle(centerX + bodyRadius * 0.7f, centerY, spinRadius, spinColor);
-    } else if (weapon.name == "Piston Punch") {
-        float pistonW = bodyRadius * 0.5f;
-        float pistonL = bodyRadius * 0.6f;
-        renderer.drawRotatedRect(centerX + facingX * bodyRadius * 1.1f,
-                                centerY + facingY * bodyRadius * 1.1f,
-                                pistonW, pistonL, angle, metalColor);
-    } else {
-        // Generic weapon bar for others
-        float wLen = bodyRadius * 0.6f;
-        float wW = bodyRadius * 0.2f;
-        renderer.drawRotatedRect(centerX + facingX * (bodyRadius + wLen/2),
-                                centerY + facingY * (bodyRadius + wLen/2),
-                                wW, wLen, angle, metalColor);
-    }
-
-    // Frame name label
     SDL_Color labelColor = {200, 200, 200, 255};
-    renderer.drawText(frame.name, centerX, centerY + bodyRadius + 18,
+    renderer.drawText(frame.name, centerX, centerY + previewBot.radius + 18,
                      renderer.getFontSmall(), labelColor, TextAlign::Center);
 }
 

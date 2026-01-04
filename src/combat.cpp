@@ -471,18 +471,21 @@ void Combat::processHammer(Bot& attacker, std::vector<Bot>& bots,
 
 void Combat::processBatteringRam(Bot& attacker, Bot& target,
                                 std::vector<CombatEvent>& events) {
-    // Damage based on speed
     float speed = std::sqrt(attacker.velX * attacker.velX + attacker.velY * attacker.velY);
-    if (speed < 0.5f) return;  // Minimum speed threshold
+    if (speed < 50.0f) return;
+
+    Vec2 facing = attacker.getFacingVector();
+    Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
+    toTarget = toTarget.normalized();
+    if (facing.dot(toTarget) < 0.5f) return;
 
     const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
 
-    float damage = speed * 2.0f;
+    float damage = speed * 0.3f;
     if (attacker.damageBoostTimer > 0) damage *= 1.5f;
     if (attacker.overdriveActive) damage *= 1.5f;
 
-    Vec2 knockDir(target.x - attacker.x, target.y - attacker.y);
-    applyDamage(target, damage, weapon.knockback, knockDir, &attacker, events);
+    applyDamage(target, damage, weapon.knockback * 1.5f, toTarget, &attacker, events);
 }
 
 void Combat::processFlail(Bot& attacker, Bot& target,
@@ -490,14 +493,16 @@ void Combat::processFlail(Bot& attacker, Bot& target,
     if (attacker.empDisabled) return;
     if (attacker.weaponCooldown > 0) return;
 
-    // Flail damage based on angular velocity
     float angularSpeed = std::abs(attacker.angularVel);
-    if (angularSpeed < 0.1f) return;
+    float linearSpeed = std::sqrt(attacker.velX * attacker.velX + attacker.velY * attacker.velY);
+    float combinedSpeed = angularSpeed * 3.0f + linearSpeed * 0.01f;
+    if (combinedSpeed < 0.3f) return;
 
     const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
 
-    float damage = weapon.damage * std::min(1.0f, angularSpeed);
-    float knockback = weapon.knockback * std::min(1.0f, angularSpeed);
+    float speedMult = std::min(2.0f, combinedSpeed);
+    float damage = weapon.damage * speedMult;
+    float knockback = weapon.knockback * speedMult;
 
     if (attacker.damageBoostTimer > 0) damage *= 1.5f;
     if (attacker.overdriveActive) damage *= 1.5f;
@@ -505,7 +510,7 @@ void Combat::processFlail(Bot& attacker, Bot& target,
     Vec2 knockDir(target.x - attacker.x, target.y - attacker.y);
     applyDamage(target, damage, knockback, knockDir, &attacker, events);
 
-    attacker.weaponCooldown = 0.3f;
+    attacker.weaponCooldown = 0.25f;
 }
 
 void Combat::processWhip(Bot& attacker, std::vector<Bot>& bots,
@@ -589,27 +594,24 @@ void Combat::processThwackBar(Bot& attacker, Bot& target,
     if (attacker.empDisabled) return;
     if (attacker.weaponCooldown > 0) return;
 
-    // Check if target is behind (rear-mounted)
     Vec2 facing = attacker.getFacingVector();
     Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
     toTarget = toTarget.normalized();
 
     float dot = facing.dot(toTarget);
-    // Rear-mounted, effective when target is behind
-    if (dot < -0.3f) {
-        // Also requires some angular velocity or backing up
-        if (std::abs(attacker.angularVel) > 0.1f || attacker.inputBack) {
-            const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
+    if (dot < 0.0f) {
+        float angularSpeed = std::abs(attacker.angularVel);
+        float speedMult = 0.5f + std::min(1.5f, angularSpeed * 2.0f);
 
-            float damage = weapon.damage;
-            if (attacker.damageBoostTimer > 0) damage *= 1.5f;
-            if (attacker.overdriveActive) damage *= 1.5f;
+        const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
 
-            Vec2 knockDir = toTarget;
-            applyDamage(target, damage, weapon.knockback, knockDir, &attacker, events);
+        float damage = weapon.damage * speedMult;
+        float knockback = weapon.knockback * speedMult;
+        if (attacker.damageBoostTimer > 0) damage *= 1.5f;
+        if (attacker.overdriveActive) damage *= 1.5f;
 
-            attacker.weaponCooldown = weapon.cooldown;
-        }
+        applyDamage(target, damage, knockback, toTarget, &attacker, events);
+        attacker.weaponCooldown = weapon.cooldown;
     }
 }
 
@@ -622,7 +624,7 @@ void Combat::processPistonPunch(Bot& attacker, std::vector<Bot>& bots,
     const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
 
     Vec2 facing = attacker.getFacingVector();
-    float punchRange = attacker.radius * 1.3f;
+    float punchRange = attacker.radius * 1.8f;
 
     for (auto& target : bots) {
         if (&target == &attacker) continue;
@@ -630,9 +632,8 @@ void Combat::processPistonPunch(Bot& attacker, std::vector<Bot>& bots,
 
         float dist = distance(attacker.x, attacker.y, target.x, target.y);
         if (dist < punchRange + target.radius) {
-            // Check if in front
             Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
-            if (facing.dot(toTarget.normalized()) > 0.5f) {
+            if (facing.dot(toTarget.normalized()) > 0.4f) {
                 float damage = weapon.damage;
                 if (attacker.damageBoostTimer > 0) damage *= 1.5f;
                 if (attacker.overdriveActive) damage *= 1.5f;
@@ -752,8 +753,7 @@ void Combat::activateSpecial(Bot& bot, std::vector<Bot>& allBots,
         // Mine is handled externally
     }
     else if (special.name == "EMP Pulse") {
-        // Disable nearby enemy weapons
-        float empRadius = 100.0f;
+        float empRadius = 150.0f;
         for (auto& other : allBots) {
             if (&other == &bot) continue;
             if (!other.isAlive) continue;
@@ -761,8 +761,10 @@ void Combat::activateSpecial(Bot& bot, std::vector<Bot>& allBots,
             float dist = distance(bot.x, bot.y, other.x, other.y);
             if (dist < empRadius) {
                 other.empDisabled = true;
-                other.empDisabledTimer = 2.0f;
+                other.empDisabledTimer = 3.0f;
                 other.spinnerSpeed = 0.0f;
+                other.velX *= 0.5f;
+                other.velY *= 0.5f;
             }
         }
     }
