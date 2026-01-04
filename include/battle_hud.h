@@ -37,7 +37,10 @@ public:
     // Render player health bar and status
     static void renderPlayerHUD(const Bot& bot, int position, float matchTimer);
 
-    // Render corner score boxes
+    // Render corner HUD (combines score, HP, and abilities for one player)
+    static void renderCornerHUD(const Bot& bot, int position, int kills, float matchTimer);
+
+    // Render corner score boxes (deprecated - use renderCornerHUD)
     static void renderScoreBoxes(const std::vector<Bot>& bots,
                                  const std::map<int, BotBattleStats>& stats);
 

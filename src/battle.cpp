@@ -227,6 +227,57 @@ void BattleManager::update(BattleState& state, GameContext& ctx, float dt) {
 }
 
 void BattleManager::updateBots(BattleState& state, float dt) {
+    // Handle respawning
+    for (auto& bot : state.bots) {
+        if (!bot.isAlive && !bot.isRespawning) {
+            // Bot just died, start respawn timer
+            bot.isRespawning = true;
+            bot.respawnTimer = Bot::RESPAWN_DELAY;
+        }
+
+        if (bot.isRespawning) {
+            bot.respawnTimer -= dt;
+            if (bot.respawnTimer <= 0) {
+                // Respawn the bot
+                bot.isRespawning = false;
+                bot.isAlive = true;
+                bot.health = bot.maxHealth;
+
+                // Find a safe spawn position
+                float spawnX, spawnY;
+                if (state.wall.active) {
+                    // Spawn within safe zone
+                    float safeW = state.wall.right - state.wall.left;
+                    float safeH = state.wall.bottom - state.wall.top;
+                    float margin = bot.radius * 2;
+                    spawnX = state.wall.left + margin + (safeW - margin * 2) * (0.2f + 0.6f * (bot.playerIndex % 2));
+                    spawnY = state.wall.top + margin + (safeH - margin * 2) * (0.2f + 0.6f * ((bot.playerIndex / 2) % 2));
+                } else {
+                    // Use regular spawn positions
+                    auto spawns = getSpawnPositions(state.stage, 4);
+                    int spawnIdx = bot.playerIndex % static_cast<int>(spawns.size());
+                    spawnX = spawns[spawnIdx].x;
+                    spawnY = spawns[spawnIdx].y;
+                }
+
+                float spawnAngle = std::atan2(
+                    state.stage.height / 2.0f - spawnY,
+                    state.stage.width / 2.0f - spawnX
+                );
+                bot.reset(spawnX, spawnY, spawnAngle);
+
+                // Clear any status effects
+                bot.speedBoostTimer = 0;
+                bot.damageBoostTimer = 0;
+                bot.shieldActive = false;
+                bot.boostActive = false;
+                bot.berserkActive = false;
+                bot.specialCooldown = 0;
+                bot.heldPowerup = -1;
+            }
+        }
+    }
+
     // Update movement
     for (auto& bot : state.bots) {
         if (!bot.isAlive) continue;
@@ -571,24 +622,23 @@ void BattleManager::handleWinScreenInput(BattleState& state, GameContext& ctx) {
 void BattleManager::checkGameOver(BattleState& state) {
     if (state.isGameOver()) return;
 
-    int alive = state.countAliveBots();
-
-    // Check for timeout
+    // Only end game on timeout (infinite respawns, timed match)
     if (state.matchTimer >= state.maxMatchTime) {
-        // Find bot with most health
+        // Find bot with most kills
         int bestBot = -1;
-        float bestHealth = -1;
+        int bestKills = -1;
         bool tie = false;
 
         for (size_t i = 0; i < state.bots.size(); ++i) {
-            if (state.bots[i].isAlive) {
-                if (state.bots[i].health > bestHealth) {
-                    bestHealth = state.bots[i].health;
-                    bestBot = static_cast<int>(i);
-                    tie = false;
-                } else if (state.bots[i].health == bestHealth) {
-                    tie = true;
-                }
+            auto it = state.botStats.find(state.bots[i].playerIndex);
+            int kills = (it != state.botStats.end()) ? it->second.kills : 0;
+
+            if (kills > bestKills) {
+                bestKills = kills;
+                bestBot = static_cast<int>(i);
+                tie = false;
+            } else if (kills == bestKills && kills > 0) {
+                tie = true;
             }
         }
 
@@ -598,20 +648,6 @@ void BattleManager::checkGameOver(BattleState& state) {
             state.result = BattleResult::Winner;
             state.winnerIndex = bestBot;
         }
-        return;
-    }
-
-    // Check for single survivor
-    if (alive == 1) {
-        for (size_t i = 0; i < state.bots.size(); ++i) {
-            if (state.bots[i].isAlive) {
-                state.result = BattleResult::Winner;
-                state.winnerIndex = static_cast<int>(i);
-                break;
-            }
-        }
-    } else if (alive == 0) {
-        state.result = BattleResult::Draw;
     }
 }
 

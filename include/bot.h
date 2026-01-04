@@ -103,6 +103,11 @@ struct Bot {
     bool isAlive = true;
     bool isBot = false;  // AI controlled
 
+    // Respawn system
+    float respawnTimer = 0.0f;
+    bool isRespawning = false;
+    static constexpr float RESPAWN_DELAY = 3.0f;
+
     // Methods
     void calculateDerivedStats();
     void reset(float spawnX, float spawnY, float spawnAngle);

@@ -50,6 +50,12 @@ struct Storm {
 
     // Check if position is outside safe zone
     bool isOutside(float x, float y) const;
+
+    // Get damage percent per second based on current phase (1%, 3%, 5%)
+    float getDamagePercent() const;
+
+    // Get fraction of bot overlapping with storm (0 = safe, 1 = fully in storm)
+    float getOverlapFraction(float botX, float botY, float botRadius) const;
 };
 
 // Storm manager handles updates and rendering

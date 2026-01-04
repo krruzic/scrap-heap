@@ -13,7 +13,6 @@ void Storm::reset(float stageWidth, float stageHeight) {
     currentPhase = 0;
     phaseTimer = 0.0f;
     active = false;
-    damagePerSecond = 5.0f;
 
     // Set new targets
     float shrinkAmount = stageWidth * 0.15f;
@@ -26,6 +25,39 @@ void Storm::reset(float stageWidth, float stageHeight) {
 bool Storm::isOutside(float x, float y) const {
     if (!active) return false;
     return x < left || x > right || y < top || y > bottom;
+}
+
+float Storm::getDamagePercent() const {
+    // 1% per second in phase 1, 3% in phase 2, 5% in phase 3+
+    if (currentPhase <= 1) return 1.0f;
+    if (currentPhase == 2) return 3.0f;
+    return 5.0f;
+}
+
+float Storm::getOverlapFraction(float botX, float botY, float botRadius) const {
+    if (!active) return 0.0f;
+
+    // Check if any part of the bot (circle) overlaps with storm
+    // Simple check: if center is outside, full overlap
+    // If center is inside but edge touches storm, partial overlap
+
+    bool centerOutside = isOutside(botX, botY);
+    if (centerOutside) return 1.0f;
+
+    // Check distance to each wall
+    float distToLeft = botX - left;
+    float distToRight = right - botX;
+    float distToTop = botY - top;
+    float distToBottom = bottom - botY;
+
+    float minDist = std::min({distToLeft, distToRight, distToTop, distToBottom});
+
+    // If closest wall is farther than bot radius, no overlap
+    if (minDist >= botRadius) return 0.0f;
+
+    // Partial overlap: fraction of radius that's in the storm
+    float overlap = (botRadius - minDist) / botRadius;
+    return std::max(0.0f, std::min(1.0f, overlap));
 }
 
 void StormManager::update(Storm& storm, const StageDef& stage, float matchTimer, float dt) {
@@ -48,7 +80,6 @@ void StormManager::update(Storm& storm, const StageDef& stage, float matchTimer,
     if (storm.phaseTimer >= Storm::PHASE_DURATION && storm.currentPhase < Storm::MAX_PHASES) {
         storm.currentPhase++;
         storm.phaseTimer = 0.0f;
-        storm.damagePerSecond += 2.0f;  // Increase damage each phase
 
         // Calculate new targets (shrink further toward center)
         float shrinkFactor = 0.85f - storm.currentPhase * 0.1f;
@@ -88,11 +119,17 @@ void StormManager::applyDamage(Storm& storm, std::vector<Bot>& bots,
                                std::vector<CombatEvent>& events, float dt) {
     if (!storm.active) return;
 
-    for (auto& bot : bots) {
-        if (!bot.isAlive) continue;
+    float damagePercent = storm.getDamagePercent();
 
-        if (storm.isOutside(bot.x, bot.y)) {
-            float damage = storm.damagePerSecond * dt;
+    for (auto& bot : bots) {
+        if (!bot.isAlive || bot.isRespawning) continue;
+
+        // Get overlap fraction (0 = fully inside safe zone, 1 = fully in storm)
+        float overlap = storm.getOverlapFraction(bot.x, bot.y, bot.radius);
+
+        if (overlap > 0) {
+            // Damage = percentage of max health per second * overlap fraction
+            float damage = (damagePercent / 100.0f) * bot.maxHealth * dt * overlap;
             bot.health -= damage;
 
             // Create damage event periodically
@@ -104,7 +141,7 @@ void StormManager::applyDamage(Storm& storm, std::vector<Bot>& bots,
                 event.type = CombatEvent::Type::Damage;
                 event.x = bot.x;
                 event.y = bot.y;
-                event.value = damage * 2;  // Show accumulated damage
+                event.value = damage * 10;  // Show accumulated damage
                 event.timer = 0.5f;
                 events.push_back(event);
             }
@@ -138,9 +175,10 @@ void StormManager::render(const Storm& storm, const StageDef& stage,
     float pulse = 0.7f + 0.3f * std::sin(storm.pulseTimer * 2.0f);
     float fastPulse = 0.5f + 0.5f * std::sin(storm.animTimer * 5.0f);
 
-    // === Layer 1: Dense storm background (~80% opacity) ===
-    uint8_t baseAlpha = static_cast<uint8_t>(190 + 30 * pulse);
-    SDL_Color stormBase = {25, 5, 50, baseAlpha};
+    // === Layer 1: Semi-translucent storm background (~50% opacity) ===
+    // Much more translucent so bots are visible underneath
+    uint8_t baseAlpha = static_cast<uint8_t>(100 + 30 * pulse);
+    SDL_Color stormBase = {30, 10, 60, baseAlpha};
 
     // Draw storm zone rectangles (the dangerous areas outside safe zone)
     // Left zone
@@ -164,8 +202,8 @@ void StormManager::render(const Storm& storm, const StageDef& stage,
                          stage.height - storm.bottom, stormBase, true);
     }
 
-    // === Layer 2: Pulsing energy overlay ===
-    uint8_t energyAlpha = static_cast<uint8_t>(60 + 40 * fastPulse);
+    // === Layer 2: Subtle pulsing energy overlay ===
+    uint8_t energyAlpha = static_cast<uint8_t>(30 + 25 * fastPulse);
     SDL_Color energyColor = {80, 40, 150, energyAlpha};
 
     if (storm.left > 0) {
@@ -204,7 +242,7 @@ void StormManager::render(const Storm& storm, const StageDef& stage,
     }
 
     // === Layer 4: Safe zone border (crackling energy line) ===
-    SDL_Color borderColor = {100, 200, 255, static_cast<uint8_t>(200 + 55 * fastPulse)};
+    SDL_Color borderColor = {100, 200, 255, static_cast<uint8_t>(180 + 55 * fastPulse)};
     float borderThickness = 3.0f + 2.0f * pulse;
 
     // Draw safe zone outline
@@ -236,7 +274,7 @@ void StormManager::drawStormLightning(float zoneX, float zoneY, float zoneW, flo
         float flicker = std::sin(animTimer * 20.0f + b * 4.1f);
         if (flicker < 0.2f) continue;
 
-        uint8_t boltAlpha = static_cast<uint8_t>(150 + 105 * flicker);
+        uint8_t boltAlpha = static_cast<uint8_t>(120 + 80 * flicker);
 
         // Alternate colors
         SDL_Color boltColor = (b % 3 == 0) ?
