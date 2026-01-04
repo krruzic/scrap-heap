@@ -635,17 +635,25 @@ void Renderer::drawBot(const Bot& bot, SDL_Color color, float offsetX, float off
 
 void Renderer::drawBotWeapon(const Bot& bot, SDL_Color color, float offsetX, float offsetY) {
     const auto& weapon = ComponentRegistry::instance().getWeapon(bot.weaponIndex);
+    const auto& frame = ComponentRegistry::instance().getFrame(bot.frameIndex);
     Vec2 facing = bot.getFacingVector();
 
-    // Apply camera offset
     float bx = bot.x + offsetX;
     float by = bot.y + offsetY;
 
+    float weaponOffset;
+    switch (frame.shape) {
+        case FrameShape::Rectangle: weaponOffset = bot.radius * 1.15f; break;
+        case FrameShape::Triangle:  weaponOffset = bot.radius * 0.7f; break;
+        case FrameShape::Diamond:   weaponOffset = bot.radius * 0.8f; break;
+        case FrameShape::Square:    weaponOffset = bot.radius * 0.85f; break;
+        default:                    weaponOffset = bot.radius * 0.95f; break;
+    }
+
     if (weapon.name == "Spinner") {
-        // Draw spinner disc - larger size for better hit area
-        float spinnerRadius = bot.radius * 0.75f;  // Bigger spinner
-        float spinnerX = bx + facing.x * bot.radius * 0.3f;
-        float spinnerY = by + facing.y * bot.radius * 0.3f;
+        float spinnerRadius = bot.radius * 0.75f;
+        float spinnerX = bx + facing.x * weaponOffset;
+        float spinnerY = by + facing.y * weaponOffset;
 
         // Base spinner disc (always visible)
         SDL_Color baseColor = {100, 100, 110, 255};
@@ -678,39 +686,32 @@ void Renderer::drawBotWeapon(const Bot& bot, SDL_Color color, float offsetX, flo
         drawCircleOutline(spinnerX, spinnerY, spinnerRadius, rimColor, 2.0f);
     }
     else if (weapon.name == "Clamp") {
-        // Draw clamp jaws
         Vec2 perp(-facing.y, facing.x);
         float jawLen = bot.radius * 0.5f;
         float jawWidth = bot.radius * 0.2f;
-        float jawOffset = bot.radius * 0.3f;
+        float jawSpacing = bot.radius * 0.3f;
 
         SDL_Color jawColor = {150, 150, 160, 255};
 
-        // Left jaw
-        float lx = bx + facing.x * bot.radius * 0.8f - perp.x * jawOffset;
-        float ly = by + facing.y * bot.radius * 0.8f - perp.y * jawOffset;
+        float lx = bx + facing.x * weaponOffset - perp.x * jawSpacing;
+        float ly = by + facing.y * weaponOffset - perp.y * jawSpacing;
         drawRotatedRect(lx, ly, jawLen, jawWidth, bot.angle - 0.3f, jawColor);
 
-        // Right jaw
-        float rx = bx + facing.x * bot.radius * 0.8f + perp.x * jawOffset;
-        float ry = by + facing.y * bot.radius * 0.8f + perp.y * jawOffset;
+        float rx = bx + facing.x * weaponOffset + perp.x * jawSpacing;
+        float ry = by + facing.y * weaponOffset + perp.y * jawSpacing;
         drawRotatedRect(rx, ry, jawLen, jawWidth, bot.angle + 0.3f, jawColor);
     }
     else if (weapon.name == "Hammer") {
-        // Draw hammer head
-        float hammerX = bx + facing.x * bot.radius * 1.1f;
-        float hammerY = by + facing.y * bot.radius * 1.1f;
-        SDL_Color hammerColor = {180, 180, 190, 255};
-        if (bot.hammerWindingUp) {
-            hammerColor = {255, 200, 100, 255};
-        }
+        float hammerX = bx + facing.x * (weaponOffset + bot.radius * 0.2f);
+        float hammerY = by + facing.y * (weaponOffset + bot.radius * 0.2f);
+        SDL_Color hammerColor = bot.hammerWindingUp ?
+            SDL_Color{255, 200, 100, 255} : SDL_Color{180, 180, 190, 255};
         drawRotatedRect(hammerX, hammerY, bot.radius * 0.5f, bot.radius * 0.3f,
                         bot.angle, hammerColor);
     }
     else if (weapon.name == "Battering Ram") {
-        // Draw ram front plate
-        float ramX = bx + facing.x * bot.radius * 0.9f;
-        float ramY = by + facing.y * bot.radius * 0.9f;
+        float ramX = bx + facing.x * weaponOffset;
+        float ramY = by + facing.y * weaponOffset;
         SDL_Color ramColor = {100, 100, 120, 255};
         drawRotatedRect(ramX, ramY, bot.radius * 0.3f, bot.radius * 0.8f,
                         bot.angle, ramColor);

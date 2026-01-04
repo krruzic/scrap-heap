@@ -266,44 +266,49 @@ void Combat::processWeapons(std::vector<Bot>& bots, const StageDef& stage,
 void Combat::processSpinner(Bot& attacker, Bot& target,
                            std::vector<CombatEvent>& events, float dt) {
     if (attacker.empDisabled) return;
-    if (attacker.spinnerSpeed < SPINNER_MIN_SPEED) return;
     if (attacker.weaponCooldown > 0) return;
 
     const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
     const auto& targetWeapon = ComponentRegistry::instance().getWeapon(target.weaponIndex);
 
-    float damage = weapon.damage * attacker.spinnerSpeed;
-    float knockback = weapon.knockback * attacker.spinnerSpeed;
+    float damage;
+    float knockback;
 
-    // Damage boost effects
+    if (attacker.inputSpecial && attacker.spinnerSpeed > 0.1f) {
+        damage = weapon.damage * attacker.spinnerSpeed;
+        knockback = weapon.knockback * attacker.spinnerSpeed;
+        attacker.spinnerSpeed = 0.0f;
+    } else {
+        damage = weapon.damage * 0.5f;
+        knockback = weapon.knockback * 0.5f;
+    }
+
     if (attacker.damageBoostTimer > 0) damage *= 1.5f;
     if (attacker.overdriveActive) damage *= 1.5f;
 
     Vec2 knockDir(target.x - attacker.x, target.y - attacker.y);
 
-    // Check if target also has a spinning weapon - mutual damage
     bool targetHasSpinner = (targetWeapon.name == "Spinner" || targetWeapon.name == "Dual Spinners")
-                            && target.spinnerSpeed >= SPINNER_MIN_SPEED;
+                            && target.spinnerSpeed >= 0.1f;
 
     if (targetHasSpinner) {
-        // Spinner vs spinner - both take damage based on relative speeds
-        float targetDamage = targetWeapon.damage * target.spinnerSpeed;
+        float targetDamage = targetWeapon.damage * 0.5f;
+        if (target.inputSpecial && target.spinnerSpeed > 0.1f) {
+            targetDamage = targetWeapon.damage * target.spinnerSpeed;
+            target.spinnerSpeed = 0.0f;
+        }
         if (target.damageBoostTimer > 0) targetDamage *= 1.5f;
         if (target.overdriveActive) targetDamage *= 1.5f;
 
-        // Apply damage to attacker from target's spinner
         Vec2 reverseKnockDir(-knockDir.x, -knockDir.y);
-        float targetKnockback = targetWeapon.knockback * target.spinnerSpeed;
+        float targetKnockback = targetWeapon.knockback * 0.5f;
 
-        // Mutual damage - both spinners hit each other
         applyDamage(target, damage, knockback, knockDir, &attacker, events);
         applyDamage(attacker, targetDamage * 0.7f, targetKnockback * 0.7f, reverseKnockDir, &target, events);
 
-        // Both spinners slow down from collision
         attacker.spinnerSpeed *= 0.6f;
         target.spinnerSpeed *= 0.6f;
     } else {
-        // Normal spinner hit
         applyDamage(target, damage, knockback, knockDir, &attacker, events);
     }
 
@@ -629,20 +634,27 @@ void Combat::processPistonPunch(Bot& attacker, std::vector<Bot>& bots,
 void Combat::processDualSpinners(Bot& attacker, Bot& target,
                                 std::vector<CombatEvent>& events, float dt) {
     if (attacker.empDisabled) return;
-    if (attacker.spinnerSpeed < SPINNER_MIN_SPEED) return;
     if (attacker.weaponCooldown > 0) return;
 
-    // Check if target is to the side (side-mounted spinners)
     Vec2 facing = attacker.getFacingVector();
     Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
     toTarget = toTarget.normalized();
 
     float dot = facing.dot(toTarget);
-    if (std::abs(dot) < 0.8f) {  // Side arc
+    if (std::abs(dot) < 0.8f) {
         const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
 
-        float damage = weapon.damage * attacker.spinnerSpeed;
-        float knockback = weapon.knockback * attacker.spinnerSpeed;
+        float damage;
+        float knockback;
+
+        if (attacker.inputSpecial && attacker.spinnerSpeed > 0.1f) {
+            damage = weapon.damage * attacker.spinnerSpeed;
+            knockback = weapon.knockback * attacker.spinnerSpeed;
+            attacker.spinnerSpeed = 0.0f;
+        } else {
+            damage = weapon.damage * 0.5f;
+            knockback = weapon.knockback * 0.5f;
+        }
 
         if (attacker.damageBoostTimer > 0) damage *= 1.5f;
         if (attacker.overdriveActive) damage *= 1.5f;
