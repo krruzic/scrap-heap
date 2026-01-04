@@ -76,7 +76,7 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
         effectiveAccelRate *= 0.5f;
     }
 
-    // === TANK CONTROLS ===
+    // === CONTROLS ===
     // Steering: left stick X or d-pad left/right
     float steerInput = bot.stickX;
     if (bot.inputLeft) steerInput = -1.0f;
@@ -86,56 +86,106 @@ void Physics::updateBotMovement(Bot& bot, float dt) {
     float driveInput = bot.throttle - bot.reverse;
 
     // Turn speed based on engine torque
-    // Higher torque = faster turning, weight reduces it
     float baseTurnRate = (engine.torque / bot.totalWeight) * 2.2f;
+    float angularAccel = 8.0f;
 
-    // Angular velocity smoothing - don't turn instantly
-    float targetAngularVel = steerInput * baseTurnRate;
-    float angularAccel = 8.0f;  // How fast we reach target turn rate
-
-    // Smoothly interpolate angular velocity
-    float angularDiff = targetAngularVel - bot.angularVel;
-    float maxAngularChange = angularAccel * dt;
-    if (std::abs(angularDiff) < maxAngularChange) {
-        bot.angularVel = targetAngularVel;
-    } else {
-        bot.angularVel += (angularDiff > 0 ? maxAngularChange : -maxAngularChange);
-    }
-
-    // Apply angular velocity to angle
-    bot.angle += bot.angularVel * dt;
-    bot.angle = normalizeAngle(bot.angle);
-
-    // === GRADUAL ACCELERATION ===
     Vec2 facing = bot.getFacingVector();
 
-    // Current speed in facing direction
-    float currentForwardSpeed = facing.x * bot.velX + facing.y * bot.velY;
+    // === OMNI-DRIVE: Move in stick direction, rotate only when not driving ===
+    if (engine.omniDrive) {
+        // Get movement direction from stick
+        float moveX = bot.stickX;
+        float moveY = bot.stickY;
+        if (bot.inputLeft) moveX = -1.0f;
+        if (bot.inputRight) moveX = 1.0f;
 
-    // Target speed based on input
-    float targetSpeed = driveInput * effectiveMaxSpeed;
+        float stickMag = std::sqrt(moveX * moveX + moveY * moveY);
+        bool hasStickInput = stickMag > 0.1f;
+        bool isDriving = std::abs(driveInput) > 0.1f;
 
-    // Speed difference
-    float speedDiff = targetSpeed - currentForwardSpeed;
+        // Only rotate when NOT driving (allows aiming while stationary)
+        if (!isDriving && hasStickInput) {
+            // Turn to face stick direction
+            float targetAngle = std::atan2(moveY, moveX);
+            float angleDiff = normalizeAngle(targetAngle - bot.angle);
 
-    // Acceleration curve: faster from rest, slower near max
-    float speedRatio = std::abs(currentForwardSpeed) / std::max(0.1f, effectiveMaxSpeed);
-    float accelCurve = 1.0f - speedRatio * 0.4f;  // 100% at rest, 60% at max
-    accelCurve = std::max(0.3f, accelCurve);  // Never below 30%
+            float targetAngularVel = std::clamp(angleDiff * 3.0f, -baseTurnRate, baseTurnRate);
+            float angularDiffRate = targetAngularVel - bot.angularVel;
+            float maxAngularChange = angularAccel * dt;
 
-    // Calculate acceleration this frame
-    float accelThisFrame = effectiveAccelRate * accelCurve * dt * 80.0f;
+            if (std::abs(angularDiffRate) < maxAngularChange) {
+                bot.angularVel = targetAngularVel;
+            } else {
+                bot.angularVel += (angularDiffRate > 0 ? maxAngularChange : -maxAngularChange);
+            }
+        } else if (isDriving) {
+            // Dampen rotation while driving
+            bot.angularVel *= 0.9f;
+        }
 
-    // Clamp to not overshoot target
-    if (std::abs(accelThisFrame) > std::abs(speedDiff)) {
-        accelThisFrame = speedDiff;
-    } else if (speedDiff < 0) {
-        accelThisFrame = -accelThisFrame;
+        bot.angle += bot.angularVel * dt;
+        bot.angle = normalizeAngle(bot.angle);
+
+        // Movement: drive in stick direction (or facing if using triggers only)
+        Vec2 moveDir;
+        if (hasStickInput && isDriving) {
+            // Move in stick direction when both stick and trigger pressed
+            moveDir = Vec2(moveX / stickMag, moveY / stickMag);
+        } else {
+            // Move in facing direction when using triggers only
+            moveDir = facing;
+        }
+
+        float currentSpeed = moveDir.x * bot.velX + moveDir.y * bot.velY;
+        float targetSpeed = std::abs(driveInput) * effectiveMaxSpeed;
+        if (driveInput < 0) targetSpeed = -targetSpeed;
+
+        float speedDiff = targetSpeed - currentSpeed;
+        float speedRatio = std::abs(currentSpeed) / std::max(0.1f, effectiveMaxSpeed);
+        float accelCurve = std::max(0.3f, 1.0f - speedRatio * 0.4f);
+        float accelThisFrame = effectiveAccelRate * accelCurve * dt * 80.0f;
+
+        if (std::abs(accelThisFrame) > std::abs(speedDiff)) {
+            accelThisFrame = speedDiff;
+        } else if (speedDiff < 0) {
+            accelThisFrame = -accelThisFrame;
+        }
+
+        bot.velX += moveDir.x * accelThisFrame;
+        bot.velY += moveDir.y * accelThisFrame;
     }
+    // === STANDARD TANK CONTROLS ===
+    else {
+        float targetAngularVel = steerInput * baseTurnRate;
+        float angularDiff = targetAngularVel - bot.angularVel;
+        float maxAngularChange = angularAccel * dt;
 
-    // Apply acceleration in facing direction
-    bot.velX += facing.x * accelThisFrame;
-    bot.velY += facing.y * accelThisFrame;
+        if (std::abs(angularDiff) < maxAngularChange) {
+            bot.angularVel = targetAngularVel;
+        } else {
+            bot.angularVel += (angularDiff > 0 ? maxAngularChange : -maxAngularChange);
+        }
+
+        bot.angle += bot.angularVel * dt;
+        bot.angle = normalizeAngle(bot.angle);
+
+        float currentForwardSpeed = facing.x * bot.velX + facing.y * bot.velY;
+        float targetSpeed = driveInput * effectiveMaxSpeed;
+        float speedDiff = targetSpeed - currentForwardSpeed;
+
+        float speedRatio = std::abs(currentForwardSpeed) / std::max(0.1f, effectiveMaxSpeed);
+        float accelCurve = std::max(0.3f, 1.0f - speedRatio * 0.4f);
+        float accelThisFrame = effectiveAccelRate * accelCurve * dt * 80.0f;
+
+        if (std::abs(accelThisFrame) > std::abs(speedDiff)) {
+            accelThisFrame = speedDiff;
+        } else if (speedDiff < 0) {
+            accelThisFrame = -accelThisFrame;
+        }
+
+        bot.velX += facing.x * accelThisFrame;
+        bot.velY += facing.y * accelThisFrame;
+    }
 
     // Clamp to max speed
     float speed = std::sqrt(bot.velX * bot.velX + bot.velY * bot.velY);

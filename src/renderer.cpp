@@ -817,11 +817,166 @@ void Renderer::drawBotWeapon(const Bot& bot, SDL_Color color, float offsetX, flo
                         bot.angle, hammerColor);
     }
     else if (weapon.name == "Battering Ram") {
+        // Heavy reinforced plow/wedge at front
         float ramX = bx + facing.x * weaponOffset;
         float ramY = by + facing.y * weaponOffset;
-        SDL_Color ramColor = {100, 100, 120, 255};
-        drawRotatedRect(ramX, ramY, bot.radius * 0.3f, bot.radius * 0.8f,
-                        bot.angle, ramColor);
+        SDL_Color ramColor = {120, 120, 140, 255};
+        SDL_Color ramEdge = {180, 180, 200, 255};
+        // Main wedge
+        drawRotatedRect(ramX, ramY, bot.radius * 0.3f, bot.radius * 0.9f, bot.angle, ramColor);
+        // Reinforced edge
+        float edgeX = ramX + facing.x * bot.radius * 0.15f;
+        float edgeY = ramY + facing.y * bot.radius * 0.15f;
+        drawRotatedRect(edgeX, edgeY, bot.radius * 0.1f, bot.radius * 0.85f, bot.angle, ramEdge);
+    }
+    else if (weapon.name == "Flail") {
+        // Spinning ball on chain
+        float animTime = SDL_GetTicks() / 1000.0f;
+        float spinRate = 4.0f + std::abs(bot.angularVel) * 2.0f;
+        float flailAngle = bot.angle + animTime * spinRate;
+        float chainLen = bot.radius * 0.8f;
+
+        float attachX = bx + facing.x * weaponOffset * 0.5f;
+        float attachY = by + facing.y * weaponOffset * 0.5f;
+        float ballX = attachX + std::cos(flailAngle) * chainLen;
+        float ballY = attachY + std::sin(flailAngle) * chainLen;
+
+        // Chain
+        SDL_Color chainColor = {100, 100, 110, 255};
+        drawLine(attachX, attachY, ballX, ballY, chainColor, 2.0f);
+        // Spiked ball
+        SDL_Color ballColor = {150, 150, 160, 255};
+        drawFilledCircle(ballX, ballY, bot.radius * 0.25f, ballColor);
+        // Spikes
+        for (int i = 0; i < 6; ++i) {
+            float spikeAngle = flailAngle + i * PI / 3.0f;
+            float sx = ballX + std::cos(spikeAngle) * bot.radius * 0.35f;
+            float sy = ballY + std::sin(spikeAngle) * bot.radius * 0.35f;
+            drawLine(ballX, ballY, sx, sy, {200, 200, 210, 255}, 2.0f);
+        }
+    }
+    else if (weapon.name == "Whip") {
+        // Long flexible whip weapon
+        Vec2 perp(-facing.y, facing.x);
+        float whipLen = bot.radius * 1.2f;
+        float animTime = SDL_GetTicks() / 1000.0f;
+        float wave = std::sin(animTime * 8.0f) * 0.3f;
+
+        float baseX = bx + facing.x * weaponOffset * 0.6f + perp.x * bot.radius * 0.3f;
+        float baseY = by + facing.y * weaponOffset * 0.6f + perp.y * bot.radius * 0.3f;
+
+        SDL_Color whipColor = {140, 100, 80, 255};
+        // Whip segments with wave effect
+        float prevX = baseX, prevY = baseY;
+        for (int seg = 1; seg <= 4; ++seg) {
+            float t = seg / 4.0f;
+            float segWave = wave * t * 0.5f;
+            float nx = baseX + facing.x * whipLen * t + perp.x * segWave * bot.radius;
+            float ny = baseY + facing.y * whipLen * t + perp.y * segWave * bot.radius;
+            drawLine(prevX, prevY, nx, ny, whipColor, 3.0f - seg * 0.5f);
+            prevX = nx; prevY = ny;
+        }
+        // Whip tip
+        drawFilledCircle(prevX, prevY, 3.0f, {180, 140, 120, 255});
+    }
+    else if (weapon.name == "Saw Blade") {
+        // Side-mounted circular saw
+        Vec2 perp(-facing.y, facing.x);
+        float sawRadius = bot.radius * 0.4f;
+        float sawX = bx + perp.x * bot.radius * 0.9f;
+        float sawY = by + perp.y * bot.radius * 0.9f;
+
+        float animTime = SDL_GetTicks() / 1000.0f;
+        float sawSpin = animTime * 15.0f;
+
+        // Saw disc
+        SDL_Color sawColor = {180, 180, 190, 255};
+        drawFilledCircle(sawX, sawY, sawRadius, sawColor);
+        // Saw teeth
+        SDL_Color teethColor = {220, 220, 230, 255};
+        for (int i = 0; i < 8; ++i) {
+            float toothAngle = sawSpin + i * PI / 4.0f;
+            float tx1 = sawX + std::cos(toothAngle) * sawRadius * 0.6f;
+            float ty1 = sawY + std::sin(toothAngle) * sawRadius * 0.6f;
+            float tx2 = sawX + std::cos(toothAngle) * sawRadius * 1.1f;
+            float ty2 = sawY + std::sin(toothAngle) * sawRadius * 1.1f;
+            drawLine(tx1, ty1, tx2, ty2, teethColor, 2.0f);
+        }
+        // Center hub
+        drawFilledCircle(sawX, sawY, sawRadius * 0.25f, {100, 100, 110, 255});
+    }
+    else if (weapon.name == "Thwack Bar") {
+        // Rear-mounted spinning bar
+        float barX = bx - facing.x * bot.radius * 0.5f;
+        float barY = by - facing.y * bot.radius * 0.5f;
+        float barLen = bot.radius * 1.1f;
+
+        float animTime = SDL_GetTicks() / 1000.0f;
+        float barSpin = bot.angle + animTime * 6.0f + std::abs(bot.angularVel) * 0.5f;
+
+        SDL_Color barColor = {160, 160, 170, 255};
+        Vec2 barDir(std::cos(barSpin), std::sin(barSpin));
+        float bx1 = barX - barDir.x * barLen;
+        float by1 = barY - barDir.y * barLen;
+        float bx2 = barX + barDir.x * barLen;
+        float by2 = barY + barDir.y * barLen;
+        drawLine(bx1, by1, bx2, by2, barColor, 5.0f);
+        // End caps
+        drawFilledCircle(bx1, by1, 5.0f, {200, 200, 210, 255});
+        drawFilledCircle(bx2, by2, 5.0f, {200, 200, 210, 255});
+    }
+    else if (weapon.name == "Piston Punch") {
+        // Extendable piston at front
+        float pistonX = bx + facing.x * weaponOffset;
+        float pistonY = by + facing.y * weaponOffset;
+
+        float animTime = SDL_GetTicks() / 1000.0f;
+        float extend = (std::sin(animTime * 10.0f) + 1.0f) * 0.15f;
+        if (bot.weaponCooldown > 0) extend = 0.4f; // Extended during cooldown
+
+        SDL_Color pistonBody = {120, 120, 130, 255};
+        SDL_Color pistonHead = {180, 180, 190, 255};
+
+        // Piston housing
+        drawRotatedRect(pistonX, pistonY, bot.radius * 0.4f, bot.radius * 0.35f, bot.angle, pistonBody);
+        // Piston head (extends)
+        float headX = pistonX + facing.x * bot.radius * extend;
+        float headY = pistonY + facing.y * bot.radius * extend;
+        drawRotatedRect(headX, headY, bot.radius * 0.25f, bot.radius * 0.5f, bot.angle, pistonHead);
+    }
+    else if (weapon.name == "Dual Spinners") {
+        // Two smaller spinners on sides
+        Vec2 perp(-facing.y, facing.x);
+        float spinnerRadius = bot.radius * 0.45f;
+        float animTime = SDL_GetTicks() / 1000.0f;
+        float spinRate = 10.0f + bot.spinnerSpeed * 8.0f;
+        float bladeAngle = bot.angle + animTime * spinRate;
+
+        for (int side = -1; side <= 1; side += 2) {
+            float sx = bx + facing.x * weaponOffset * 0.7f + perp.x * bot.radius * 0.5f * side;
+            float sy = by + facing.y * weaponOffset * 0.7f + perp.y * bot.radius * 0.5f * side;
+
+            // Spinner disc
+            SDL_Color baseColor = {100, 100, 110, 255};
+            drawFilledCircle(sx, sy, spinnerRadius, baseColor);
+
+            // Blades
+            uint8_t intensity = static_cast<uint8_t>(155 + 100 * bot.spinnerSpeed);
+            SDL_Color bladeColor = {intensity, static_cast<uint8_t>(intensity * 0.6f), 50, 255};
+            for (int i = 0; i < 3; ++i) {
+                float a = bladeAngle * side + i * PI * 2.0f / 3.0f;
+                float bx1 = sx + std::cos(a) * spinnerRadius * 0.2f;
+                float by1 = sy + std::sin(a) * spinnerRadius * 0.2f;
+                float bx2 = sx + std::cos(a) * spinnerRadius * 0.95f;
+                float by2 = sy + std::sin(a) * spinnerRadius * 0.95f;
+                drawLine(bx1, by1, bx2, by2, bladeColor, 3.0f);
+            }
+
+            // Rim
+            SDL_Color rimColor = bot.spinnerSpeed > 0.8f ?
+                SDL_Color{255, 200, 100, 255} : SDL_Color{150, 150, 160, 255};
+            drawCircleOutline(sx, sy, spinnerRadius, rimColor, 1.5f);
+        }
     }
 }
 
