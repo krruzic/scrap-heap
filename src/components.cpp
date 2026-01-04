@@ -31,7 +31,7 @@ void ComponentRegistry::initialize() {
     // Initialize Weapons
     weapons = {
         // name, type, damage, knockback, weight, cooldown, spinUpTime, grabDuration, ignoresArmor, armorPierce, description
-        {"Spinner", WeaponType::Passive, 8.0f, 80.0f, 15.0f, 0.3f, 1.5f, 0.0f, false, 0.0f,
+        {"Spinner", WeaponType::Passive, 8.0f, 250.0f, 15.0f, 0.3f, 1.5f, 0.0f, false, 0.0f,
          "Continuous on contact, resets on damage"},
         {"Clamp", WeaponType::Active, 15.0f, 20.0f, 20.0f, 0.0f, 0.0f, 3.0f, false, 0.0f,
          "Grapple and drag target"},
@@ -49,13 +49,13 @@ void ComponentRegistry::initialize() {
          "Rear-mounted, attack by spinning"},
         {"Piston Punch", WeaponType::Active, 8.0f, 200.0f, 20.0f, 1.0f, 0.0f, 0.0f, false, 0.0f,
          "Short range, huge knockback"},
-        {"Dual Spinners", WeaponType::Passive, 5.0f, 50.0f, 22.0f, 0.3f, 1.5f, 0.0f, false, 0.0f,
+        {"Dual Spinners", WeaponType::Passive, 5.0f, 180.0f, 22.0f, 0.3f, 1.5f, 0.0f, false, 0.0f,
          "Side-mounted pair, covers flanks"}
     };
 
     // Initialize Specials
     specials = {
-        {"Boost", 3.0f, 0.5f, "Burst of speed forward"},
+        {"Boost", 3.0f, 1.5f, "Burst of speed forward"},
         {"Anchor", 5.0f, 2.0f, "Cannot move, immune to knockback"},
         {"Overdrive", 8.0f, 3.0f, "1.5x weapon damage, take 1.5x damage"},
         {"Smoke", 10.0f, 4.0f, "Drop vision-obscuring cloud"},

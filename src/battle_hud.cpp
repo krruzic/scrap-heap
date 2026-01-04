@@ -78,13 +78,6 @@ void drawPowerupIcon(Renderer& r, float cx, float cy, float size, const Bot& bot
         color = {255, 80, 80, 255};
         r.drawCircle(cx, cy - size*0.15f, size*0.3f, color, true);
         r.drawRect(cx - size*0.25f, cy + size*0.1f, size*0.5f, size*0.25f, color, true);
-    } else if (bot.boostActive) {
-        color = {80, 200, 255, 255};
-        r.drawTriangle(cx + size*0.5f, cy, cx - size*0.3f, cy - size*0.4f, cx - size*0.3f, cy + size*0.4f, color, true);
-    } else if (bot.berserkActive) {
-        color = {255, 50, 50, 255};
-        r.drawCircle(cx, cy - size*0.1f, size*0.35f, color, true);
-        r.drawRect(cx - size*0.25f, cy + size*0.15f, size*0.5f, size*0.2f, color, true);
     } else if (bot.heldPowerup >= 0) {
         color = {200, 200, 50, 255};
         r.drawRect(cx - size*0.35f, cy - size*0.35f, size*0.7f, size*0.7f, color, true);
@@ -188,7 +181,7 @@ void BattleHUD::renderCornerHUD(const Bot& bot, int position, int kills, float m
     r.drawCircleOutline(pwrX, circleY, iconSize * 0.8f, {80, 80, 100, 255}, 2.0f);
 
     bool hasPowerup = bot.shieldActive || bot.speedBoostTimer > 0 || bot.damageBoostTimer > 0 ||
-                      bot.boostActive || bot.berserkActive || bot.heldPowerup >= 0;
+                      bot.heldPowerup >= 0;
     if (hasPowerup && bot.isAlive) {
         drawPowerupIcon(r, pwrX, circleY, iconSize * 0.7f, bot);
     }

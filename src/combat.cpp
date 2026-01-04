@@ -331,6 +331,11 @@ void Combat::processClamp(Bot& attacker, Bot& target,
     if (attacker.grabState != GrabState::None) return;
     if (target.grabState != GrabState::None) return;
 
+    Vec2 facing = attacker.getFacingVector();
+    Vec2 toTarget(target.x - attacker.x, target.y - attacker.y);
+    toTarget = toTarget.normalized();
+    if (facing.dot(toTarget) < 0.5f) return;
+
     const auto& weapon = ComponentRegistry::instance().getWeapon(attacker.weaponIndex);
 
     // Initiate grab
@@ -728,9 +733,8 @@ void Combat::activateSpecial(Bot& bot, std::vector<Bot>& allBots,
         bot.boostActive = true;
         bot.specialActiveTimer = special.duration;
 
-        // Apply strong forward impulse for burst launch effect
         Vec2 facing = bot.getFacingVector();
-        float boostImpulse = 600.0f;  // Strong launch forward
+        float boostImpulse = 1000.0f;
         Physics::applyImpulse(bot, Vec2(facing.x * boostImpulse, facing.y * boostImpulse));
     }
     else if (special.name == "Anchor") {
