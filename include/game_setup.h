@@ -40,7 +40,8 @@ enum class ConfigOption {
 // Player slot in game setup
 struct PlayerSlot {
     PlayerSlotState state = PlayerSlotState::Empty;
-    int controllerIndex = -1;  // -1 = keyboard player
+    int controllerIndex = -1;  // -1 = keyboard player, -2 = AI player
+    bool isAI = false;         // AI controlled bot
 
     // Selections
     int tagIndex = -1;         // -1 = use default "Player N"

@@ -64,6 +64,7 @@ void InputManager::beginFrame() {
     keyboard.prevEnter = keyboard.enter;
     keyboard.prevEscape = keyboard.escape;
     keyboard.prevTab = keyboard.tab;
+    keyboard.prevX = keyboard.x;
 
     // Update controller states
     for (auto& controller : controllers) {
@@ -189,6 +190,9 @@ void InputManager::processEvent(const SDL_Event& event) {
                     break;
                 case SDL_SCANCODE_TAB:
                     keyboard.tab = pressed;
+                    break;
+                case SDL_SCANCODE_X:
+                    keyboard.x = pressed;
                     break;
                 default:
                     break;

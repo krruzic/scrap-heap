@@ -66,6 +66,9 @@ BattleState BattleManager::createBattle(const PlayerSlot* slots, int stageIndex)
             slot.colorIndex
         );
 
+        // Mark AI-controlled bots
+        bot.isBot = slot.isAI;
+
         // Set spawn position
         float spawnAngle = std::atan2(
             state.stage.height / 2.0f - spawnPositions[i].y,
@@ -140,6 +143,76 @@ void BattleManager::update(BattleState& state, GameContext& ctx, float dt) {
     auto& input = InputManager::instance();
     for (auto& bot : state.bots) {
         if (!bot.isAlive) continue;
+
+        // AI-controlled bots
+        if (bot.isBot) {
+            // Store previous state for press detection
+            bool prevWeapon = bot.inputWeapon;
+            bool prevSpecial = bot.inputSpecial;
+
+            // Reset input
+            bot.inputForward = false;
+            bot.inputBack = false;
+            bot.inputLeft = false;
+            bot.inputRight = false;
+            bot.inputWeapon = false;
+            bot.inputSpecial = false;
+            bot.stickX = 0.0f;
+            bot.stickY = 0.0f;
+            bot.throttle = 0.0f;
+            bot.reverse = 0.0f;
+
+            // Find nearest enemy
+            Bot* target = nullptr;
+            float nearestDist = 999999.0f;
+            for (auto& other : state.bots) {
+                if (other.playerIndex == bot.playerIndex || !other.isAlive) continue;
+                float dist = distance(bot.x, bot.y, other.x, other.y);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    target = &other;
+                }
+            }
+
+            if (target) {
+                // Calculate angle to target
+                float dx = target->x - bot.x;
+                float dy = target->y - bot.y;
+                float targetAngle = std::atan2(dy, dx);
+
+                // Calculate angle difference
+                float angleDiff = targetAngle - bot.angle;
+                while (angleDiff > PI) angleDiff -= 2.0f * PI;
+                while (angleDiff < -PI) angleDiff += 2.0f * PI;
+
+                // Set steering to turn toward target
+                bot.stickX = std::max(-1.0f, std::min(1.0f, angleDiff * 2.0f));
+                bot.stickY = 0.0f;
+
+                // Drive forward if facing roughly toward target
+                if (std::abs(angleDiff) < PI / 3.0f) {
+                    bot.throttle = 1.0f;
+                } else if (std::abs(angleDiff) > 2.0f * PI / 3.0f) {
+                    // Target is behind, reverse
+                    bot.reverse = 0.5f;
+                }
+
+                // Attack when close
+                if (nearestDist < 80.0f) {
+                    bot.inputWeapon = true;
+                }
+
+                // Use special occasionally when close
+                if (nearestDist < 120.0f && bot.specialCooldown <= 0.0f) {
+                    bot.inputSpecial = true;
+                }
+            }
+
+            // Detect button presses
+            bot.inputWeaponPressed = bot.inputWeapon && !prevWeapon;
+            bot.inputSpecialPressed = bot.inputSpecial && !prevSpecial;
+            continue;
+        }
 
         // Find the player slot that matches this bot
         int slotIndex = -1;

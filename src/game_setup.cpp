@@ -6,10 +6,14 @@
 #include "stage.h"
 #include "bot.h"
 #include <algorithm>
+#include <random>
 
 namespace ScrapHeap {
 
 std::string PlayerSlot::getDisplayName(int slotIndex) const {
+    if (isAI) {
+        return "CPU " + std::to_string(slotIndex + 1);
+    }
     if (tagIndex < 0) {
         return "PLAYER " + std::to_string(slotIndex + 1);
     }
@@ -140,16 +144,58 @@ void GameSetupScreen::handleInput(GameContext& ctx) {
         }
     }
 
+    // X key adds AI player with random build
+    if (keyboard.xPressed()) {
+        for (int s = 0; s < 4; ++s) {
+            if (slots[s].state == PlayerSlotState::Empty) {
+                auto& registry = ComponentRegistry::instance();
+                static std::random_device rd;
+                static std::mt19937 gen(rd());
+
+                // Random build
+                std::uniform_int_distribution<> frameDist(0, registry.getFrameCount() - 1);
+                std::uniform_int_distribution<> engineDist(0, registry.getEngineCount() - 1);
+                std::uniform_int_distribution<> weaponDist(0, registry.getWeaponCount() - 1);
+                std::uniform_int_distribution<> specialDist(0, registry.getSpecialCount() - 1);
+
+                slots[s].frameIndex = frameDist(gen);
+                slots[s].engineIndex = engineDist(gen);
+                slots[s].weaponIndex = weaponDist(gen);
+                slots[s].specialIndex = specialDist(gen);
+
+                // Find available color
+                auto availableColors = getAvailableColorIndices(s);
+                if (!availableColors.empty()) {
+                    std::uniform_int_distribution<> colorDist(0, static_cast<int>(availableColors.size()) - 1);
+                    slots[s].colorIndex = availableColors[colorDist(gen)];
+                }
+
+                // Mark as AI and auto-ready
+                slots[s].controllerIndex = -2;  // AI indicator
+                slots[s].isAI = true;
+                slots[s].tagIndex = -1;  // Will show as "CPU N"
+                slots[s].state = PlayerSlotState::Ready;
+
+                // Track first ready player
+                if (firstReadyPlayer < 0) {
+                    firstReadyPlayer = s;
+                }
+                break;
+            }
+        }
+    }
+
     // Handle input for each slot
     for (int s = 0; s < 4; ++s) {
         if (slots[s].state == PlayerSlotState::Empty) continue;
+        if (slots[s].isAI) continue;  // AI slots don't receive input
 
         const ControllerState* controller = nullptr;
         const KeyboardState* kb = nullptr;
 
         if (slots[s].controllerIndex >= 0) {
             controller = input.getController(slots[s].controllerIndex);
-        } else {
+        } else if (slots[s].controllerIndex == -1) {
             kb = &keyboard;
         }
 

@@ -79,6 +79,7 @@ struct KeyboardState {
     bool enter = false;      // Confirm
     bool escape = false;     // Back
     bool tab = false;        // Powerup
+    bool x = false;          // Add AI player
 
     // Previous frame
     bool prevUp = false;
@@ -90,6 +91,7 @@ struct KeyboardState {
     bool prevEnter = false;
     bool prevEscape = false;
     bool prevTab = false;
+    bool prevX = false;
 
     // Press detection
     bool upPressed() const { return up && !prevUp; }
@@ -101,6 +103,7 @@ struct KeyboardState {
     bool enterPressed() const { return enter && !prevEnter; }
     bool escapePressed() const { return escape && !prevEscape; }
     bool tabPressed() const { return tab && !prevTab; }
+    bool xPressed() const { return x && !prevX; }
 };
 
 // Input manager
